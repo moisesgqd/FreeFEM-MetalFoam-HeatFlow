@@ -1,10 +1,30 @@
-string mainDir = "E:/FreeFEM_projects/PhD_research/porous_duct";
+string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
 
-string dataFile = mainDir + "/data/input_parameters.txt";
+string physDatFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
 
-string blank;
-real rhof;
-ifstream data(dataFile);
-data >> blank >> rhof; // Skip the first line
+string property;
+real value;
+real[string] properties;
 
-cout << blank << " = " << rhof << endl;
+ifstream PhysicalData(physDatFile);
+for(int i=0; i<11; i++) {
+    PhysicalData >> property >> value;
+    properties[property] = value;
+}
+
+real g = properties["g"];
+real sgm = properties["sgm"];
+real eC = properties["eC"];
+real eP = properties["eP"];
+real rhof = properties["rhof"];
+real cpf = properties["cpf"];
+real mu = properties["mu"];
+real kf = properties["kf"];
+real rhos = properties["rhos"];
+real cps = properties["cps"];
+real ks = properties["ks"];
+
+real nu = mu / rhof; // kinematic viscosity
+real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
+real alphas = ks / (rhos * cps); // thermal diffusivity of solid
+real Pr = cpf * mu / kf; // Prandtl number
