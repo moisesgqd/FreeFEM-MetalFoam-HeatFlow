@@ -1,0 +1,10 @@
+string mainDir = "E:/FreeFEM_projects/PhD_research/porous_duct";
+
+string dataFile = mainDir + "/data/input_parameters.txt";
+
+string blank;
+real rhof;
+ifstream data(dataFile);
+data >> blank >> rhof; // Skip the first line
+
+cout << blank << " = " << rhof << endl;
