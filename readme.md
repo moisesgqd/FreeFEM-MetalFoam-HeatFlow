@@ -1,4 +1,4 @@
-# About the data file
+# About the properties data file
 
 The numbers in the thermophysical parameters file represent physical quantities in the international metric system.
 
@@ -14,3 +14,7 @@ They represent:
 - rhos: solid density in kg/m^3
 - cps: solid specific heat in J/(kg-K)
 - ks: solid thermal conductivity in W/(m-K)
+
+ Although order could be altered, consider **only modifying the numerical values** of the properties.
+
+Based on the values, the program calculates the kinematic viscosity, thermal diffusivities for the fluid and the solid phases, and Prandtl number.
