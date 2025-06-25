@@ -1,11 +1,13 @@
-# 
+# About the code
 
 ## About data files
 
-### Thermophysical properties
-The numbers in the thermophysical parameters file represent physical quantities in the international metric system.
+Keep in mind that all quantities must be presented in the **international system of units**, i.e., kilogram, meter, second, Kelvin, and their derivatives.
 
-They represent:
+### Thermophysical properties
+
+Relevant constants, properties of the surfaces, and properties of fluid and solid phases. These are:
+
 - g: gravity constant in m/s^2
 - sgm: Stefan-Boltzmann constant in W/(m^2-K^4)
 - eC: emissivity of glass cover, no dimensional
@@ -18,14 +20,13 @@ They represent:
 - cps: solid specific heat in J/(kg-K)
 - ks: solid thermal conductivity in W/(m-K)
 
- Although order could be altered, consider **only modifying the numerical values** of the properties.
+Although order could be altered, consider **only modifying the numerical values** of the properties.
 
 Based on the values, the program calculates the kinematic viscosity, thermal diffusivities for the fluid and the solid phases, and Prandtl number.
 
-
 ### Channel characteristics
 
-It's assumed that there's only one glass cover for a parallel plate channel
+It's assumed that there's only one glass cover protecting the parallel plate channel.
 
 - L: length in m
 - H: height in m
@@ -33,3 +34,15 @@ It's assumed that there's only one glass cover for a parallel plate channel
 - beta: channel inclination in rad
 - Lgc: separation between glass cover and collector plate in m
 - Vflow: volumetric flow in m^3/s
+
+With this information, average inlet velocity is calculated, and also channel height Reynolds number.
+
+### Weather data
+
+From left to right, the information in the file represents:
+
+- time: in hhmm-format
+- qabs: absorbed solar irradiation in W/m^2
+- Tamb: surroundings ambient temperature in K
+- hwind: heat loss wind coefficient in W/(m^2-K)
+- Tsky: sky temperature in K

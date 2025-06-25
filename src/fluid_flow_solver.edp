@@ -3,7 +3,7 @@ int i; // loop counter
 
 string physDatFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
 string weatherFile = home + "data/weather_data.txt"; // file containing weather data
-
+string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
 
 // ===== Read properties data ======
 string property;
@@ -46,3 +46,22 @@ WeatherData >> blank; // ignore first line (header)
 for(i=0; i<n; i++){
     WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
 }
+
+// ===== Read channel characteristics ======
+ifstream ChannelData(channelFile);
+
+for(i=0; i<6; i++) {
+    ChannelData >> property >> value;
+    properties[property] = value;
+}
+
+real L = properties["L"];
+real H = properties["H"];
+real W = properties["W"];
+real beta = properties["beta"];
+real Lgc = properties["Lgc"];
+real Vflow = properties["Vflow"];
+
+real Ac = H * W; // cross-sectional area of channel
+real u0 = Vflow / Ac; // average flow velocity
+real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
