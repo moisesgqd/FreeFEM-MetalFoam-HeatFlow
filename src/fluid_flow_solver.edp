@@ -1,0 +1,25 @@
+//////////////////////////////////////////////////////////////
+// Fluid Flow Solver for Porous Duct
+// File: fluid_flow_solver.edp
+// Description: Simulation of fluid flow in a porous duct
+// Author: Moises Quintanilla
+// Date: 24-06-2025
+//////////////////////////////////////////////////////////////
+
+// ==========================================================
+// Initialization Section
+// ==========================================================
+
+// ===== Package Loading =====
+// Load necessary packages for simulation
+
+// Package for exporting data in VTU format, for later visualization in Paraview
+load "iovtk"
+
+// ===== Debugging Options =====
+// Enable debugging options to track the simulation process
+
+verbosity = false; // Set to true to enable detailed output
+bool bPlotMesh = false; // Set to true to plot the mesh
+bool bPlotData = false; // Set to true to plot the data
+bool bExportData = false; // Set to true to export data in dat format
