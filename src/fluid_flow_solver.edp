@@ -1,13 +1,15 @@
 string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+int i; // loop counter
 
 string physDatFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
+string weatherFile = home + "data/weather_data.txt"; // file containing weather data
 
 string property;
 real value;
 real[string] properties;
 
 ifstream PhysicalData(physDatFile);
-for(int i=0; i<11; i++) {
+for(i=0; i<11; i++) {
     PhysicalData >> property >> value;
     properties[property] = value;
 }
@@ -28,3 +30,11 @@ real nu = mu / rhof; // kinematic viscosity
 real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
 real alphas = ks / (rhos * cps); // thermal diffusivity of solid
 real Pr = cpf * mu / kf; // Prandtl number
+
+ifstream WeatherData(weatherFile);
+string hour;
+string blank;
+real qabs, Tamb, hwind, Tsky;
+WeatherData >> blank; // ignore first line (header)
+
+WeatherData >> hour >> qabs >> Tamb >> hwind >> Tsky;
