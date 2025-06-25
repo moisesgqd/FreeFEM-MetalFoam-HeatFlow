@@ -1,0 +1,78 @@
+string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+bool bPlotMesh = true;
+bool bValidDist = false;
+
+// ==========================================================
+// Inputs
+// ==========================================================
+
+// Providing that the following information is available:
+real L = 2.0; // Length of the duct
+real H = 0.025; // Height of the duct
+real xi=L/H, coeff;
+
+int nx = 50; // Number of elements in the x-direction
+int ny = 50; // Number of elements in the y-direction
+
+// ===== Mesh characteristics =====
+bool bdim = true; // is the mesh semi-dimensional?
+string distribution; // Distribution type for mesh generation: options are "linear", "quadratic","trigonometric"
+
+// ==========================================================
+// Mesh Generation Section
+// ==========================================================
+
+// Declare mesh variable
+// The mesh will be generated based on the specified distribution type
+mesh Th;
+
+// Generate the mesh based on the distribution type
+// The user will be prompted to enter the distribution type until a valid one is provided
+while(bValidDist != true){
+    cout << "Enter distribution type (linear/quad/trigo): " << endl;
+    cin >> distribution;
+    if(distribution == "linear"){
+        // Linear distribution mesh generation
+        if (bdim){
+            coeff = 1.0; // Reset xi for semi-dimensional case
+        }
+        else{
+            coeff = xi; // Coefficient for full-dimensional case
+        }
+        func xDist = coeff*x; // x-coordinate
+        func yDist = y; // y-coordinate
+        Th = square(nx, ny, [xDist,yDist], flags=2);
+        break;
+    }
+    else if(distribution == "quad"){
+        // Quadratic distribution mesh generation
+        if (bdim){
+            coeff = 1.0; // Reset xi for semi-dimensional case
+        }
+        else{
+            coeff = xi; // Coefficient for full-dimensional case
+        }
+        func xDist = coeff*square(x); // x-coordinate
+        func yDist = square(y); // y-coordinate
+        Th = square(nx, ny, [xDist,yDist], flags=2);
+        break;
+    }
+    else if(distribution == "trigo"){
+        // Trigonometric distribution mesh generation
+        if (bdim){
+            coeff = 1.0; // Reset xi for semi-dimensional case
+        }
+        else{
+            coeff = xi; // Coefficient for full-dimensional case
+        }
+        func xDist = coeff*(1-cos(pi*x)); // x-coordinate
+        func yDist = (1-cos(pi*y)); // y-coordinate
+        Th = square(nx, ny, [xDist,yDist], flags=2);
+        break;
+    }
+    else{
+        cout << "Invalid distribution type. Please choose 'linear', 'quad', or 'trigo'." << endl;
+    }
+}
+
+if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct");
