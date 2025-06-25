@@ -4,6 +4,8 @@ int i; // loop counter
 string physDatFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
 string weatherFile = home + "data/weather_data.txt"; // file containing weather data
 
+
+// ===== Read properties data ======
 string property;
 real value;
 real[string] properties;
@@ -31,10 +33,16 @@ real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
 real alphas = ks / (rhos * cps); // thermal diffusivity of solid
 real Pr = cpf * mu / kf; // Prandtl number
 
+
+// ===== Read weather data ======
+
 ifstream WeatherData(weatherFile);
-string hour;
 string blank;
-real qabs, Tamb, hwind, Tsky;
+int n=27; // size of the arrays
+string[int] hour(n);
+real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
 WeatherData >> blank; // ignore first line (header)
 
-WeatherData >> hour >> qabs >> Tamb >> hwind >> Tsky;
+for(i=0; i<n; i++){
+    WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
+}
