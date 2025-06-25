@@ -1,5 +1,8 @@
-# About the properties data file
+# 
 
+## About data files
+
+### Thermophysical properties
 The numbers in the thermophysical parameters file represent physical quantities in the international metric system.
 
 They represent:
@@ -18,3 +21,15 @@ They represent:
  Although order could be altered, consider **only modifying the numerical values** of the properties.
 
 Based on the values, the program calculates the kinematic viscosity, thermal diffusivities for the fluid and the solid phases, and Prandtl number.
+
+
+### Channel characteristics
+
+It's assumed that there's only one glass cover for a parallel plate channel
+
+- L: length in m
+- H: height in m
+- W: width in m
+- beta: channel inclination in rad
+- Lgc: separation between glass cover and collector plate in m
+- Vflow: volumetric flow in m^3/s
