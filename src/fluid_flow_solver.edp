@@ -23,3 +23,8 @@ verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = false; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
 bool bExportData = false; // Set to true to export data in dat format
+
+
+string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+mesh Th = readmesh(home + "mesh/mesh_100x50_2x0.025_trigo.msh"); // Read the mesh from a file
+plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
