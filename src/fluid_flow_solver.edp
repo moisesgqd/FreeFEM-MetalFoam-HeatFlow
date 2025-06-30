@@ -19,18 +19,16 @@ load "iovtk"
 // ===== Debugging Options =====
 // Enable debugging options to track the simulation process
 
-verbosity = false; // Set to true to enable detailed output
-bool bPlotMesh = false; // Set to true to plot the mesh
+verbosity = true; // Set to true to enable detailed output
+bool bPlotMesh = true; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
 bool bExportData = false; // Set to true to export data in dat format
 
+// ===== Counters for iterations =====
+int i, j, k; // General counters for loops
 
+// ===== Absolute and relative paths =====
 string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
-mesh Th = readmesh(home + "mesh/mesh_100x50_2x0.025_trigo.msh"); // Read the mesh from a file
-plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
-string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
-int i; // loop counter
-
 string physicalFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
 string weatherFile = home + "data/weather_data.txt"; // file containing weather data
 string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
@@ -81,7 +79,7 @@ for(i=0; i<n; i++){
 // ===== Read channel characteristics ======
 ifstream ChannelData(channelFile);
 
-for(i=0; i<8; i++) {
+for(i=0; i<6; i++){
     ChannelData >> property >> value;
     properties[property] = value;
 }
@@ -98,13 +96,26 @@ real u0 = Vflow / Ac; // average flow velocity
 real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
 
 
-
+// ===== Read mesh data ======
 ifstream meshData(meshDataFile);
 int nx, ny;
-string distributionRead;
+string distribution;
 
 meshData >> blank >> nx;
-meshData >> blank >> nx;
+meshData >> blank >> ny;
 meshData >> blank >> distribution;
 
 cout << "Mesh data: nx = " << nx << ", ny = " << ny << ", distribution = " << distribution << endl;
+
+
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "_" + distribution + ".msh"; // Name of the mesh based on dimensions and distribution type
+cout << "Mesh name: " << meshName << endl;
+
+try{
+    mesh Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
+}
+catch(...){
+    cout <<  "       -----> File not found. GENERATE THE MESH." << endl;
+    exit(0);
+}
