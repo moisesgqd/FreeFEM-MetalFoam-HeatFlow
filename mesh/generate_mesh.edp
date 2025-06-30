@@ -1,22 +1,59 @@
-string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+//////////////////////////////////////////////////////////////
+// Mesh generator for a porous duct simulation
+// File: generate_mesh.edp
+// Description: Simulation of fluid flow in a porous duct
+// Author: Moises Quintanilla
+// Date: 25-06-2025
+//////////////////////////////////////////////////////////////
+
+// ===== Debugging Options =====
+// Enable debugging options to track the simulation process
+
+verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true;
 bool bValidDist = false;
+int i, j, k; // General counters for loops
+
+// ===== Relative and absolute paths =====
+// Define the home directory for the project
+// This path should be adjusted based on the user's directory structure
+string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
+string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
 
 // ==========================================================
 // Inputs
 // ==========================================================
 
-// Providing that the following information is available:
-real L = 2.0; // Length of the duct
-real H = 0.025; // Height of the duct
+// ===== Read channel characteristics ======
+ifstream ChannelData(channelFile);
+string property;
+real value;
+real[string] properties;
+
+for(i=0; i<3; i++){
+    ChannelData >> property >> value;
+    properties[property] = value;
+}
+
+real L = properties["L"];
+real H = properties["H"];
+real W = properties["W"];
+
 real xi=L/H, coeff;
 
-int nx = 100; // Number of elements in the x-direction
-int ny = 50; // Number of elements in the y-direction
+// ===== Read mesh data ======
+ifstream meshData(meshDataFile);
+int nx, ny;
+string blank, distribution;
+
+meshData >> blank >> nx;
+meshData >> blank >> ny;
+meshData >> blank >> distribution;
+
 
 // ===== Mesh characteristics =====
 bool bdim = true; // is the mesh semi-dimensional?
-string distribution="trigo"; // Distribution type for mesh generation: options are "linear", "quadratic","trigonometric"
 
 // ==========================================================
 // Mesh Generation Section
@@ -70,6 +107,19 @@ else{
 }
 
 
+// ===== Name the mesh file =====
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "_" + distribution + ".msh"; // Name of the mesh file to save
+
+
+try{
+    // Try reading the mesh from the file
+    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    cout << "Mesh already generated." << endl;
+}
+catch(...){
+    // If the mesh file is not found, generate it
+    cout << "     -----> Mesh file not found. Generating mesh..." << endl;
+    savemesh(Th, home + "mesh/" + meshName);
+}
+
 if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct");
-string MeshName = "mesh/mesh_" + nx + "x" + ny + "_" + L + "x" + H + "_" + distribution + ".msh"; // Name of the mesh file to save
-savemesh(Th, home + MeshName);
