@@ -46,3 +46,11 @@ From left to right, the information in the file represents:
 - Tamb: surroundings ambient temperature in K
 - hwind: heat loss wind coefficient in W/(m^2-K)
 - Tsky: sky temperature in K
+
+### Mesh data
+
+The contents in the mesh_data.txt file represent:
+
+- nx: total nodes on the x-direction
+- ny: total nodes on the y-direction
+- dist: distribution function of the nodes
