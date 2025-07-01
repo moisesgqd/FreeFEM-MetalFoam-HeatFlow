@@ -37,6 +37,7 @@
 
 # Directories
 results/
+*.msh
 
 # Meshes
 *.msh

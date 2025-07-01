@@ -1,0 +1,3 @@
+nx  100
+ny  50
+dist    trigo

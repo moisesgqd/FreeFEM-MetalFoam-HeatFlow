@@ -19,7 +19,103 @@ load "iovtk"
 // ===== Debugging Options =====
 // Enable debugging options to track the simulation process
 
-verbosity = false; // Set to true to enable detailed output
-bool bPlotMesh = false; // Set to true to plot the mesh
+verbosity = true; // Set to true to enable detailed output
+bool bPlotMesh = true; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
 bool bExportData = false; // Set to true to export data in dat format
+
+// ===== Counters for iterations =====
+int i, j, k; // General counters for loops
+
+// ===== Absolute and relative paths =====
+string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+string physicalFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
+string weatherFile = home + "data/weather_data.txt"; // file containing weather data
+string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
+string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
+
+// ===== Read properties data ======
+string property;
+real value;
+real[string] properties;
+
+ifstream PhysicalData(physicalFile);
+for(i=0; i<11; i++) {
+    PhysicalData >> property >> value;
+    properties[property] = value;
+}
+
+real g = properties["g"];
+real sgm = properties["sgm"];
+real eC = properties["eC"];
+real eP = properties["eP"];
+real rhof = properties["rhof"];
+real cpf = properties["cpf"];
+real mu = properties["mu"];
+real kf = properties["kf"];
+real rhos = properties["rhos"];
+real cps = properties["cps"];
+real ks = properties["ks"];
+
+real nu = mu / rhof; // kinematic viscosity
+real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
+real alphas = ks / (rhos * cps); // thermal diffusivity of solid
+real Pr = cpf * mu / kf; // Prandtl number
+
+
+// ===== Read weather data ======
+
+ifstream WeatherData(weatherFile);
+string blank;
+int n=27; // size of the arrays
+string[int] hour(n);
+real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
+WeatherData >> blank; // ignore first line (header)
+
+for(i=0; i<n; i++){
+    WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
+}
+
+// ===== Read channel characteristics ======
+ifstream ChannelData(channelFile);
+
+for(i=0; i<6; i++){
+    ChannelData >> property >> value;
+    properties[property] = value;
+}
+
+real L = properties["L"];
+real H = properties["H"];
+real W = properties["W"];
+real beta = properties["beta"];
+real Lgc = properties["Lgc"];
+real Vflow = properties["Vflow"];
+
+real Ac = H * W; // cross-sectional area of channel
+real u0 = Vflow / Ac; // average flow velocity
+real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
+
+
+// ===== Read mesh data ======
+ifstream meshData(meshDataFile);
+int nx, ny;
+string distribution;
+
+meshData >> blank >> nx;
+meshData >> blank >> ny;
+meshData >> blank >> distribution;
+
+cout << "Mesh data: nx = " << nx << ", ny = " << ny << ", distribution = " << distribution << endl;
+
+
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "_" + distribution + ".msh"; // Name of the mesh based on dimensions and distribution type
+cout << "Mesh name: " << meshName << endl;
+
+try{
+    mesh Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
+}
+catch(...){
+    cout <<  "       -----> File not found. GENERATE THE MESH." << endl;
+    exit(0);
+}
