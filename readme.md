@@ -53,4 +53,6 @@ The contents in the mesh_data.txt file represent:
 
 - nx: total nodes on the x-direction
 - ny: total nodes on the y-direction
-- dist: distribution function of the nodes
+- distX: distribution function of the nodes in x-direction
+- distY: distribution function of the nodes in y-direction
+- dim: specified if the variables are dimensional (dim), non-dimensional based on channel height (noH) or non-dimensional based on L and H, respectively (non)

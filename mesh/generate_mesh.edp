@@ -6,120 +6,64 @@
 // Date: 25-06-2025
 //////////////////////////////////////////////////////////////
 
-// ===== Debugging Options =====
-// Enable debugging options to track the simulation process
 
+// ==========================================================
+// Preparation Section
+// ==========================================================
+
+// ===== Debugging =====
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true;
-bool bValidDist = false;
-int i, j, k; // General counters for loops
+string[int] distributions = ["linear", "quad", "trigo"]; // Possible values for the mesh distribution: "linear", "quad", "trigo"
+string[int] vardimension = ["non", "noH", "dim"]; // Possible values for the mesh dimension: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+
 
 // ===== Relative and absolute paths =====
 // Define the home directory for the project
 // This path should be adjusted based on the user's directory structure
 string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+
+// Define the paths for mesh data and channel characteristics
 string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
 string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
 
 // ==========================================================
-// Inputs
+// Inputs Section
 // ==========================================================
 
-// ===== Read channel characteristics ======
+// ========== Read channel characteristics ==========
+
+// --- Open file and define variables to save data ---
+// The file gets closed automatically when all the lines are read
 ifstream ChannelData(channelFile);
 string property;
 real value;
 real[string] properties;
 
-for(i=0; i<3; i++){
+// --- Read each line of the file to save its content ---
+for(int i=0; i<3; i++){
     ChannelData >> property >> value;
     properties[property] = value;
 }
 
+// --- Save the properties in variables for easy access ---
 real L = properties["L"];
 real H = properties["H"];
 real W = properties["W"];
 
-real xi=L/H, coeff;
 
-// ===== Read mesh data ======
+// ========== Read mesh data ==========
+
+// --- Open file and define variables to save data ---
+// The file gets closed automatically when all the lines are read
 ifstream meshData(meshDataFile);
 int nx, ny;
-string blank, distribution;
+string blank, distX, distY; 
+string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
 
+// --- Read each line of the file to save its content ---
 meshData >> blank >> nx;
 meshData >> blank >> ny;
-meshData >> blank >> distribution;
-
-
-// ===== Mesh characteristics =====
-bool bdim = true; // is the mesh semi-dimensional?
-
-// ==========================================================
-// Mesh Generation Section
-// ==========================================================
-
-// Declare mesh variable
-// The mesh will be generated based on the specified distribution type
-mesh Th;
-
-// Generate the mesh based on the distribution type
-// The user will be prompted to enter the distribution type until a valid one is provided
-if(distribution == "linear"){
-    // Linear distribution mesh generation
-    if (bdim){
-        coeff = 1.0; // Reset xi for semi-dimensional case
-    }
-    else{
-        coeff = xi; // Coefficient for full-dimensional case
-    }
-    func xDist = coeff*x; // x-coordinate
-    func yDist = y; // y-coordinate
-    Th = square(nx, ny, [xDist,yDist], flags=2);
-}
-else if(distribution == "quad"){
-    // Quadratic distribution mesh generation
-    if (bdim){
-        coeff = 1.0; // Reset xi for semi-dimensional case
-    }
-    else{
-        coeff = xi; // Coefficient for full-dimensional case
-    }
-    func xDist = coeff*square(x); // x-coordinate
-    func yDist = square(y); // y-coordinate
-    Th = square(nx, ny, [xDist,yDist], flags=2);
-}
-else if(distribution == "trigo"){
-    // Trigonometric distribution mesh generation
-    if (bdim){
-        coeff = 1.0; // Reset xi for semi-dimensional case
-    }
-    else{
-        coeff = xi; // Coefficient for full-dimensional case
-    }
-    func xDist = coeff*(1-cos(pi*x)); // x-coordinate
-    func yDist = (1-cos(pi*y)); // y-coordinate
-    Th = square(nx, ny, [xDist,yDist], flags=2);
-}
-else{
-    cout << "Invalid distribution type. Please choose 'linear', 'quad', or 'trigo'." << endl;
-    exit(0);
-}
-
-
-// ===== Name the mesh file =====
-string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "_" + distribution + ".msh"; // Name of the mesh file to save
-
-
-try{
-    // Try reading the mesh from the file
-    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
-    cout << "Mesh already generated." << endl;
-}
-catch(...){
-    // If the mesh file is not found, generate it
-    cout << "     -----> Mesh file not found. Generating mesh..." << endl;
-    savemesh(Th, home + "mesh/" + meshName);
-}
-
-if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct");
+meshData >> blank >> distX;
+meshData >> blank >> distY;
+meshData >> blank >> dim;
