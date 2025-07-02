@@ -67,3 +67,33 @@ meshData >> blank >> ny;
 meshData >> blank >> distX;
 meshData >> blank >> distY;
 meshData >> blank >> dim;
+
+// ==========================================================
+// Mesh Verification/Creation Section
+// ==========================================================
+
+// ========== Check if the mesh already exists ==========
+
+// --- Define the mesh name based on the input parameters ---
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
+cout << "Mesh name: " << meshName << endl;
+
+
+// --- Declare mesh variable ---
+mesh Th;
+
+
+// --- Try yo read the mesh ---
+try{
+    // Attempt to read the mesh from the file
+    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    cout << "Mesh already generated." << endl;
+}
+catch(...){
+// 
+// ========== Generate mesh ==========
+//
+    cout << "     -----> Mesh file not found. Generating mesh..." << endl;
+}
+
+if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
