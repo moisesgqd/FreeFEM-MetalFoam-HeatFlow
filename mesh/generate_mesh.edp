@@ -15,7 +15,7 @@
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true;
 string[int] distributions = ["linear", "quad", "trigo"]; // Possible values for the mesh distribution: "linear", "quad", "trigo"
-string[int] vardimension = ["non", "noH", "dim"]; // Possible values for the mesh dimension: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+string[int] vardimension = ["dim", "noH", "non"]; // Possible values for the mesh dimension: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
 
 
 // ===== Relative and absolute paths =====
@@ -68,6 +68,44 @@ meshData >> blank >> distX;
 meshData >> blank >> distY;
 meshData >> blank >> dim;
 
+
+// ========== Preparing for mesh generation ==========
+
+// --- Check if given dim option is valid ---
+for(int i=0; i < vardimension.n; i++){
+    // Check if the current dimension matches the input dimension
+    // If it matches, print a message and exit the loop
+    if(dim == vardimension[i]){
+        cout << "Valid dimension option: " << dim << endl;
+        break; // Exit the loop if a valid dimension is found
+    }
+    // If the current dimension does not match and it's the last option, print an error message
+    // and exit the program
+    else if(i == vardimension.n - 1){
+        cout << "Invalid dimension option: " << dim << endl;
+        cout << "Valid options are: ";
+        for(int j=0; j < vardimension.n; j++){
+            cout << vardimension[j] << " ";
+        }
+        cout << "Refer to the README file for more information on these options." << endl;
+        exit(1);
+    }
+}
+
+
+// --- Define arrays containg the mesh data ---
+real[string] vardimX, vardimY;
+
+vardimX[vardimension[0]] = L; // Dimensional x coordinate
+vardimX[vardimension[1]] = L/H; // Non-dimensional x coordinate on H   
+vardimX[vardimension[2]] = 1.0; // Non-dimensional x coordinate
+
+vardimY[vardimension[0]] = H; // Dimensional y coordinate
+vardimY[vardimension[1]] = 1.0; // Non-dimensional y coordinate on H
+vardimY[vardimension[2]] = 1.0; // Non-dimensional y coordinate
+
+
+
 // ==========================================================
 // Mesh Verification/Creation Section
 // ==========================================================
@@ -94,6 +132,21 @@ catch(...){
 // ========== Generate mesh ==========
 //
     cout << "     -----> Mesh file not found. Generating mesh..." << endl;
+    bPlotMesh = false; // Disable mesh plotting during generation
+    for(int i=0; i < distributions.n; i++){
+        if(distX == distributions[i] || distY == distributions[i]){
+            cout << "Valid distributions." << endl;
+        }
+        else if(i == distributions.n - 1){
+            cout << "Invalid distribution option: " << distX << " or " << distY << endl;
+            cout << "Valid options are: ";
+            for(int j=0; j < distributions.n; j++){
+                cout << distributions[j] << " ";
+            }
+            cout << "Refer to the README file for more information on these options." << endl;
+            exit(1);
+        }
+    }
 }
 
 if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
