@@ -6,120 +6,213 @@
 // Date: 25-06-2025
 //////////////////////////////////////////////////////////////
 
-// ===== Debugging Options =====
-// Enable debugging options to track the simulation process
 
+// ==========================================================
+// Preparation Section
+// ==========================================================
+
+// ===== Debugging =====
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true;
-bool bValidDist = false;
-int i, j, k; // General counters for loops
+bool isdistXValid = false; // Flag to check if the distribution on X is valid
+bool isdistYValid = false; // Flag to check if the distribution on Y is valid
+string[int] distributions = ["linear", "quad", "trigo"]; // Possible values for the mesh distribution: "linear", "quad", "trigo"
+string[int] vardimension = ["dim", "noH", "non"]; // Possible values for the mesh dimension: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+
 
 // ===== Relative and absolute paths =====
 // Define the home directory for the project
 // This path should be adjusted based on the user's directory structure
 string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+
+// Define the paths for mesh data and channel characteristics
 string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
 string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
 
 // ==========================================================
-// Inputs
+// Inputs Section
 // ==========================================================
 
-// ===== Read channel characteristics ======
+// ========== Read channel characteristics ==========
+
+// --- Open file and define variables to save data ---
+// The file gets closed automatically when all the lines are read
 ifstream ChannelData(channelFile);
 string property;
 real value;
 real[string] properties;
 
-for(i=0; i<3; i++){
+// --- Read each line of the file to save its content ---
+for(int i=0; i<3; i++){
     ChannelData >> property >> value;
     properties[property] = value;
 }
 
+// --- Save the properties in variables for easy access ---
 real L = properties["L"];
 real H = properties["H"];
 real W = properties["W"];
 
-real xi=L/H, coeff;
 
-// ===== Read mesh data ======
+// ========== Read mesh data ==========
+
+// --- Open file and define variables to save data ---
+// The file gets closed automatically when all the lines are read
 ifstream meshData(meshDataFile);
 int nx, ny;
-string blank, distribution;
+string blank, distX, distY; 
+string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
 
+// --- Read each line of the file to save its content ---
 meshData >> blank >> nx;
 meshData >> blank >> ny;
-meshData >> blank >> distribution;
+meshData >> blank >> distX;
+meshData >> blank >> distY;
+meshData >> blank >> dim;
 
 
-// ===== Mesh characteristics =====
-bool bdim = true; // is the mesh semi-dimensional?
+// ========== Preparing for mesh generation ==========
+
+// --- Check if given dim option is valid ---
+for(int i=0; i < vardimension.n; i++){
+    // Check if the current dimension matches the input dimension
+    // If it matches, print a message and exit the loop
+    if(dim == vardimension[i]){
+        cout << "Valid dimension option: " << dim << endl;
+        break; // Exit the loop if a valid dimension is found
+    }
+    // If the current dimension does not match and it's the last option, print an error message
+    // and exit the program
+    else if(i == vardimension.n - 1){
+        cout << "Invalid dimension option: " << dim << endl;
+        cout << "Valid options are: ";
+        for(int j=0; j < vardimension.n; j++){
+            cout << vardimension[j] << " ";
+        }
+        cout << "Refer to the README file for more information on these options." << endl;
+        exit(1);
+    }
+}
+
+
+// --- Define arrays containg the mesh data ---
+real[string] vardimX, vardimY;
+
+vardimX[vardimension[0]] = L; // Dimensional x coordinate
+vardimX[vardimension[1]] = L/H; // Non-dimensional x coordinate on H   
+vardimX[vardimension[2]] = 1.0; // Non-dimensional x coordinate
+
+vardimY[vardimension[0]] = H; // Dimensional y coordinate
+vardimY[vardimension[1]] = 1.0; // Non-dimensional y coordinate on H
+vardimY[vardimension[2]] = 1.0; // Non-dimensional y coordinate
+
+
 
 // ==========================================================
-// Mesh Generation Section
+// Mesh Verification/Creation Section
 // ==========================================================
 
-// Declare mesh variable
-// The mesh will be generated based on the specified distribution type
+// ========== Check if the mesh already exists ==========
+
+// --- Define the mesh name based on the input parameters ---
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
+cout << "Mesh name: " << meshName << endl;
+
+
+// --- Declare mesh variable ---
 mesh Th;
 
-// Generate the mesh based on the distribution type
-// The user will be prompted to enter the distribution type until a valid one is provided
-if(distribution == "linear"){
-    // Linear distribution mesh generation
-    if (bdim){
-        coeff = 1.0; // Reset xi for semi-dimensional case
-    }
-    else{
-        coeff = xi; // Coefficient for full-dimensional case
-    }
-    func xDist = coeff*x; // x-coordinate
-    func yDist = y; // y-coordinate
-    Th = square(nx, ny, [xDist,yDist], flags=2);
-}
-else if(distribution == "quad"){
-    // Quadratic distribution mesh generation
-    if (bdim){
-        coeff = 1.0; // Reset xi for semi-dimensional case
-    }
-    else{
-        coeff = xi; // Coefficient for full-dimensional case
-    }
-    func xDist = coeff*square(x); // x-coordinate
-    func yDist = square(y); // y-coordinate
-    Th = square(nx, ny, [xDist,yDist], flags=2);
-}
-else if(distribution == "trigo"){
-    // Trigonometric distribution mesh generation
-    if (bdim){
-        coeff = 1.0; // Reset xi for semi-dimensional case
-    }
-    else{
-        coeff = xi; // Coefficient for full-dimensional case
-    }
-    func xDist = coeff*(1-cos(pi*x)); // x-coordinate
-    func yDist = (1-cos(pi*y)); // y-coordinate
-    Th = square(nx, ny, [xDist,yDist], flags=2);
-}
-else{
-    cout << "Invalid distribution type. Please choose 'linear', 'quad', or 'trigo'." << endl;
-    exit(0);
-}
 
-
-// ===== Name the mesh file =====
-string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "_" + distribution + ".msh"; // Name of the mesh file to save
-
-
+// --- Try yo read the mesh ---
 try{
-    // Try reading the mesh from the file
+    // Attempt to read the mesh from the file
     Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
     cout << "Mesh already generated." << endl;
 }
 catch(...){
-    // If the mesh file is not found, generate it
+// 
+// ========== Generate mesh ==========
+//
     cout << "     -----> Mesh file not found. Generating mesh..." << endl;
-    savemesh(Th, home + "mesh/" + meshName);
+    bPlotMesh = false; // Disable mesh plotting during generation
+
+    // --- Check if a valid distribution option is given ---
+    // If the distribution options are not valid, print an error message and exit
+    for(int i=0; i < distributions.n; i++){
+        // Check functions on X
+        if(distX == distributions[i]){
+            isdistXValid = true; // Set the flag to true if a valid distribution is found
+        }
+        else if((i == distributions.n - 1) && isdistXValid == false){
+            cout << "Invalid distribution on X-direction: " << distX << endl;
+            cout << "Valid options are: " << endl;
+            for(int j=0; j < distributions.n; j++){
+                cout << " " << distributions[j] << endl;
+            }
+            cout << "Refer to the README file for more information on these options." << endl;
+            exit(1);
+        }
+
+        // Check functions on Y
+        if(distY == distributions[i]){
+            isdistYValid = true; // Set the flag to true if a valid distribution is found
+        }
+        else if((i == distributions.n - 1)  && isdistYValid == false){
+            cout << "Invalid distribution on Y-direction: " << distY << endl;
+            cout << "Valid options are: " << endl;
+            for(int j=0; j < distributions.n; j++){
+                cout << " " << distributions[j] <<  endl;
+            }
+            cout << "Refer to the README file for more information on these options." << endl;
+            exit(1);
+        }
+
+        // Condition to check if both distributions are valid
+        if(isdistXValid && isdistYValid) {
+            cout << "Both distributions are valid." << endl;
+            break; // Exit the loop if both distributions are valid
+        }
+    }
+    
+    // --- Define trigonometric functions for mesh generation ---
+    func trigoX = 0.5 * (1 - cos(pi * x)); // Define a trigonometric function for X
+    func trigoY = 0.5 * (1 - cos(pi * y)); // Define a trigonometric function for Y
+
+    // --- Generate the mesh based on the distribution options ---
+    if(distX == distY){
+        if(distX == "linear"){
+            Th = square(nx, ny, [vardimX[dim]*x, vardimY[dim]*y], flags=2); // Create a square mesh with linear distribution
+        }
+        else if(distX == "quad"){
+            Th = square(nx, ny, [vardimX[dim]*(x^2), vardimY[dim]*(y^2)], flags=2); // Create a square mesh with quadratic distribution
+        }
+        else if(distX == "trigo"){
+            Th = square(nx, ny, [vardimX[dim]*trigoX, vardimY[dim]*trigoY], flags=2); // Create a square mesh with trigonometric distribution
+        }
+    }
+    else if(distX == "linear" && distY == "quad"){
+        Th = square(nx, ny, [vardimX[dim]*x, vardimY[dim]*(y^2)], flags=2);
+    }
+    else if(distX == "linear" && distY == "trigo"){
+        Th = square(nx, ny, [vardimX[dim]*x, vardimY[dim]*trigoY], flags=2);
+    }
+    else if(distX == "quad" && distY == "linear"){
+        Th = square(nx, ny, [vardimX[dim]*(x^2), vardimY[dim]*y], flags=2);
+    }
+    else if(distX == "quad" && distY == "trigo"){
+        Th = square(nx, ny, [vardimX[dim]*(x^2), vardimY[dim]*trigoY], flags=2);
+    }
+    else if(distX == "trigo" && distY == "linear"){
+        Th = square(nx, ny, [vardimX[dim]*trigoX, vardimY[dim]*y], flags=2);
+    }
+    else if(distX == "trigo" && distY == "quad"){
+        Th = square(nx, ny, [vardimX[dim]*trigoX, vardimY[dim]*(y^2)], flags=2);
+    }
+
+    savemesh(Th, home + "mesh/" + meshName); // Save the mesh to a file
+    bPlotMesh = true; // Enable mesh plotting after generation
+
+
 }
 
-if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct");
+if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true

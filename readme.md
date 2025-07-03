@@ -53,4 +53,22 @@ The contents in the mesh_data.txt file represent:
 
 - nx: total nodes on the x-direction
 - ny: total nodes on the y-direction
-- dist: distribution function of the nodes
+- distX: distribution function of the nodes in x-direction
+- distY: distribution function of the nodes in y-direction
+- dim: specified if the variables are dimensional or not
+
+#### About distribution functions
+
+The **distX** and **distY** options must correspond to one of the following options:
+
+- "linear", if the nodes ougth be distributed in a uniform manner.
+- "quad", if nodes are spatiated with the square of the distance.
+- "trigo", if nodes are spatiated as a trigonometric function of the distance.
+
+#### About the variables dimensions
+
+The option **dim** can take the following text options:
+
+- "dim", if the variables are dimensional, e.g., velocity takes m/s units.
+- "noH", if the variables have been normalized using only channel height H as a characteristic dimension.
+- "non", if the variables have been normalized using height H and length L as characteristic dimensions for the X and Y variables.
