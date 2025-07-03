@@ -99,18 +99,21 @@ real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
 // ===== Read mesh data ======
 ifstream meshData(meshDataFile);
 int nx, ny;
-string distribution;
+string distX, distY; 
+string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
 
+// --- Read each line of the file to save its content ---
 meshData >> blank >> nx;
 meshData >> blank >> ny;
-meshData >> blank >> distribution;
+meshData >> blank >> distX;
+meshData >> blank >> distY;
+meshData >> blank >> dim;
 
-cout << "Mesh data: nx = " << nx << ", ny = " << ny << ", distribution = " << distribution << endl;
-
-
-string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "_" + distribution + ".msh"; // Name of the mesh based on dimensions and distribution type
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
 cout << "Mesh name: " << meshName << endl;
 
+// --- Check if mesh file exists ---
+// If the mesh file does not exist, generate it
 try{
     mesh Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
     if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
