@@ -14,6 +14,8 @@
 // ===== Debugging =====
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true;
+bool isdistXValid = false; // Flag to check if the distribution on X is valid
+bool isdistYValid = false; // Flag to check if the distribution on Y is valid
 string[int] distributions = ["linear", "quad", "trigo"]; // Possible values for the mesh distribution: "linear", "quad", "trigo"
 string[int] vardimension = ["dim", "noH", "non"]; // Possible values for the mesh dimension: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
 
@@ -133,20 +135,84 @@ catch(...){
 //
     cout << "     -----> Mesh file not found. Generating mesh..." << endl;
     bPlotMesh = false; // Disable mesh plotting during generation
+
+    // --- Check if a valid distribution option is given ---
+    // If the distribution options are not valid, print an error message and exit
     for(int i=0; i < distributions.n; i++){
-        if(distX == distributions[i] || distY == distributions[i]){
-            cout << "Valid distributions." << endl;
+        // Check functions on X
+        if(distX == distributions[i]){
+            isdistXValid = true; // Set the flag to true if a valid distribution is found
         }
-        else if(i == distributions.n - 1){
-            cout << "Invalid distribution option: " << distX << " or " << distY << endl;
-            cout << "Valid options are: ";
+        else if((i == distributions.n - 1) && isdistXValid == false){
+            cout << "Invalid distribution on X-direction: " << distX << endl;
+            cout << "Valid options are: " << endl;
             for(int j=0; j < distributions.n; j++){
-                cout << distributions[j] << " ";
+                cout << " " << distributions[j] << endl;
             }
             cout << "Refer to the README file for more information on these options." << endl;
             exit(1);
         }
+
+        // Check functions on Y
+        if(distY == distributions[i]){
+            isdistYValid = true; // Set the flag to true if a valid distribution is found
+        }
+        else if((i == distributions.n - 1)  && isdistYValid == false){
+            cout << "Invalid distribution on Y-direction: " << distY << endl;
+            cout << "Valid options are: " << endl;
+            for(int j=0; j < distributions.n; j++){
+                cout << " " << distributions[j] <<  endl;
+            }
+            cout << "Refer to the README file for more information on these options." << endl;
+            exit(1);
+        }
+
+        // Condition to check if both distributions are valid
+        if(isdistXValid && isdistYValid) {
+            cout << "Both distributions are valid." << endl;
+            break; // Exit the loop if both distributions are valid
+        }
     }
+    
+    // --- Define trigonometric functions for mesh generation ---
+    func trigoX = 0.5 * (1 - cos(pi * x)); // Define a trigonometric function for X
+    func trigoY = 0.5 * (1 - cos(pi * y)); // Define a trigonometric function for Y
+
+    // --- Generate the mesh based on the distribution options ---
+    if(distX == distY){
+        if(distX == "linear"){
+            Th = square(nx, ny, [vardimX[dim]*x, vardimY[dim]*y], flags=2); // Create a square mesh with linear distribution
+        }
+        else if(distX == "quad"){
+            Th = square(nx, ny, [vardimX[dim]*(x^2), vardimY[dim]*(y^2)], flags=2); // Create a square mesh with quadratic distribution
+        }
+        else if(distX == "trigo"){
+            Th = square(nx, ny, [vardimX[dim]*trigoX, vardimY[dim]*trigoY], flags=2); // Create a square mesh with trigonometric distribution
+        }
+    }
+    else if(distX == "linear" && distY == "quad"){
+        Th = square(nx, ny, [vardimX[dim]*x, vardimY[dim]*(y^2)], flags=2);
+    }
+    else if(distX == "linear" && distY == "trigo"){
+        Th = square(nx, ny, [vardimX[dim]*x, vardimY[dim]*trigoY], flags=2);
+    }
+    else if(distX == "quad" && distY == "linear"){
+        Th = square(nx, ny, [vardimX[dim]*(x^2), vardimY[dim]*y], flags=2);
+    }
+    else if(distX == "quad" && distY == "trigo"){
+        Th = square(nx, ny, [vardimX[dim]*(x^2), vardimY[dim]*trigoY], flags=2);
+    }
+    else if(distX == "trigo" && distY == "linear"){
+        Th = square(nx, ny, [vardimX[dim]*trigoX, vardimY[dim]*y], flags=2);
+    }
+    else if(distX == "trigo" && distY == "quad"){
+        Th = square(nx, ny, [vardimX[dim]*trigoX, vardimY[dim]*(y^2)], flags=2);
+    }
+
+    savemesh(Th, home + "mesh/" + meshName); // Save the mesh to a file
+    bPlotMesh = true; // Enable mesh plotting after generation
+
+
 }
 
 if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
