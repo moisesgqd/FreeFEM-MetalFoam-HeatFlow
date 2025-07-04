@@ -6,45 +6,67 @@
 // Date: 24-06-2025
 //////////////////////////////////////////////////////////////
 
+// -------------------------------------------------------------------------------- //
+//																					//
+//       	    E N V I R O N M E N T   A N D   D E B U G   S E T U P   		    //
+//																					//
+// -------------------------------------------------------------------------------- //
+
 // ==========================================================
-// Initialization Section
+// Package loading
 // ==========================================================
 
-// ===== Package Loading =====
-// Load necessary packages for simulation
-
-// Package for exporting data in VTU format, for later visualization in Paraview
+// ===== Exporting data in VTU format =====
+// For later visualization in Paraview
 load "iovtk"
 
-// ===== Debugging Options =====
-// Enable debugging options to track the simulation process
+// ==========================================================
+// Debugging Options
+// ==========================================================
 
+// ===== Enable debugging options ======
+// For sanity check
 verbosity = true; // Set to true to enable detailed output
 bool bPlotMesh = true; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
 bool bExportData = false; // Set to true to export data in dat format
 
-// ===== Counters for iterations =====
-int i, j, k; // General counters for loops
-
 // ===== Absolute and relative paths =====
+// To read and save data files
 string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
 string physicalFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
 string weatherFile = home + "data/weather_data.txt"; // file containing weather data
 string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
 string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
 
-// ===== Read properties data ======
-string property;
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	    I N P U T   A N D   P A R A M E T E R   I N I T I A L I Z A T I O N   		//
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Define variables to store physical properties
+// ==========================================================
+
+// ===== Define variables to store values ====== 
+string property, blank;
 real value;
 real[string] properties;
 
-ifstream PhysicalData(physicalFile);
-for(i=0; i<11; i++) {
-    PhysicalData >> property >> value;
-    properties[property] = value;
-}
+// ==========================================================
+// Get physical properties
+// ==========================================================
 
+{
+    ifstream PhysicalData(physicalFile);
+    for(int i=0; i<11; i++) {
+        PhysicalData >> property >> value;
+        properties[property] = value;
+    }
+} // File will close automatically after this block
+
+// ===== Assign physical properties to variables ======
 real g = properties["g"];
 real sgm = properties["sgm"];
 real eC = properties["eC"];
@@ -57,33 +79,44 @@ real rhos = properties["rhos"];
 real cps = properties["cps"];
 real ks = properties["ks"];
 
+// ===== Calculate derived physical properties ======
 real nu = mu / rhof; // kinematic viscosity
 real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
 real alphas = ks / (rhos * cps); // thermal diffusivity of solid
 real Pr = cpf * mu / kf; // Prandtl number
 
+// ==========================================================
+// Get weather data
+// ==========================================================
 
-// ===== Read weather data ======
+// ===== Define variables to store weather data ======
+// int n=27; // size of the arrays
+// string[int] hour(n);
+// real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
 
-ifstream WeatherData(weatherFile);
-string blank;
-int n=27; // size of the arrays
-string[int] hour(n);
-real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
-WeatherData >> blank; // ignore first line (header)
+// // ===== Read weather data from file ======
+// {
+//     ifstream WeatherData(weatherFile);
+//     WeatherData >> blank; // ignore first line (header)
+//     for(int i=0; i<n; i++){
+//         WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
+//     }
+// } // File will close automatically after this block
 
-for(i=0; i<n; i++){
-    WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
-}
+// ==========================================================
+// Read channel characteristics
+// ==========================================================
 
-// ===== Read channel characteristics ======
-ifstream ChannelData(channelFile);
+// ===== Read channel characteristics from file ======
+{
+    ifstream ChannelData(channelFile);
+    for(int i=0; i<6; i++){
+        ChannelData >> property >> value;
+        properties[property] = value;
+    }
+} // File will close automatically after this block
 
-for(i=0; i<6; i++){
-    ChannelData >> property >> value;
-    properties[property] = value;
-}
-
+// ===== Assign channel characteristics to variables ======
 real L = properties["L"];
 real H = properties["H"];
 real W = properties["W"];
@@ -91,34 +124,182 @@ real beta = properties["beta"];
 real Lgc = properties["Lgc"];
 real Vflow = properties["Vflow"];
 
+// ===== Calculate derived channel characteristics ======
 real Ac = H * W; // cross-sectional area of channel
 real u0 = Vflow / Ac; // average flow velocity
 real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
 
+// ==================================================================================
+// Metal foam properties          NOTE: MOST OF THIS SUBSECTION IS MANUALLY MODIFIED
+// ==================================================================================
 
-// ===== Read mesh data ======
-ifstream meshData(meshDataFile);
+// ===== Porosity =====
+// Input
+real yw = 0.;	// location of wall on y-axis
+real yc = 0.0125; 	// location of maximum or minimum in quadratic function
+real phiw = 0.8; 	// porosity on lower wall
+real phic = 0.97; 	// porosity on center
+
+// --- Proposed porosity scalar field ---
+// Declare if porosity is constant or varies within the domain to print in logs file
+bool isPorosityConstant = true; // Set to true if porosity is constant, false if it varies within the domain
+
+func fphi = ((phiw-phic)/(square(yw-yc)))*((y-yc)^2.)+phic;
+
+// ===== Pore size =====
+
+
+// ===== Filament diameter =====
+
+
+// ===== Tortuosity =====
+
+
+// ===== Specofic interfacial area =====
+
+
+// ===== Permeability =====
+
+
+// ===== Forchheimer coefficient =====
+
+
+// ==========================================================
+// Time and loop control
+// ==========================================================
+
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	      M E S H   H A N D L I N G   A N D   F E M   S P A C E   S E T U P         //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Read mesh data
+// ==========================================================
+
+// ===== Define variables to store mesh data ======
 int nx, ny;
 string distX, distY; 
 string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
 
-// --- Read each line of the file to save its content ---
-meshData >> blank >> nx;
-meshData >> blank >> ny;
-meshData >> blank >> distX;
-meshData >> blank >> distY;
-meshData >> blank >> dim;
+// ===== Read each line of the file to save its content =====
+{
+    ifstream meshData(meshDataFile);
+    meshData >> blank >> nx;
+    meshData >> blank >> ny;
+    meshData >> blank >> distX;
+    meshData >> blank >> distY;
+    meshData >> blank >> dim;
+} // File will close automatically after this block
 
+// ===== Generate and print out mesh name to console ======
 string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
 cout << "Mesh name: " << meshName << endl;
 
-// --- Check if mesh file exists ---
+// ===== Check if mesh file exists =====
 // If the mesh file does not exist, generate it
 try{
     mesh Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
     if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
 }
 catch(...){
-    cout <<  "       -----> File not found. GENERATE THE MESH." << endl;
+    cout <<  "                 -----> File not found. GENERATE THE MESH." << endl;
     exit(0);
 }
+
+// ===== Wall identification =====
+// Since the square mesh was generated with the default FreeFEM options, the walls are identified as follows:
+int BottomWall = 1;
+int Outlet = 2;
+int TopWall= 3;
+int Inlet = 4;
+
+// ==========================================================
+// Create finite element spaces
+// ==========================================================
+
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	              M A T H E M A T I C A L   M O D E L   S E T U P                   //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Compressible modified Navier-Stokes equations
+// ==========================================================
+
+
+// ==========================================================
+// Pressure correction equation
+// ==========================================================
+
+
+// ==========================================================
+// Applied pressure correction
+// ==========================================================
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	                L I N E A R   S Y S T E M   A S S E M B L Y                     //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Define stiffness matrices
+// ==========================================================
+
+// ==========================================================
+// Define right hand side vectors
+// ==========================================================
+
+// -------------------------------------------------------------------------------- //
+//																					//
+//                       T I M E   S O L V E R   L O O P                            //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Update fields
+// ==========================================================
+
+// ==========================================================
+// Compressible part
+// ==========================================================
+
+// ===== Intrinsic velocity field =====
+
+// ===== Reconstruct RHS vectors =====
+
+// ===== Solve =====
+
+// ==========================================================
+// Pressure
+// ==========================================================
+
+// ===== Auxliary fields =====
+
+// ===== Reconstruct RHS vectors =====
+
+// ===== Solve =====
+
+// ==========================================================
+// Correction of velocity field
+// ==========================================================
+
+// ===== Reconstruct RHS vectors =====
+
+// ===== Solve =====
+
+// ==========================================================
+// Error and outputs
+// ==========================================================
+
+// ===== Calculate error and outflux =====
+
+// ===== Export data if conditions are met =====
+
+// ===== Apply stoping criteria =====
+
