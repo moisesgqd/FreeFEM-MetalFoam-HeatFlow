@@ -152,7 +152,7 @@ real dp = 0.002;
 
 // ===== Filament diameter =====
 // --- Model from Calmidi and Mahajan (2000) ---
-real fdf = 1.18*fdp*sqrt((1.-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04));  // in m
+real fdf = 1.18*dp*sqrt((1.-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04));  // in m
 
 // ===== Tortuosity =====
 // --- Model from Du Plesis et al (1994) ---
@@ -160,7 +160,7 @@ real Tor = 1./((3./(4*fphi))+((sqrt(9.-8.*fphi))/(2.*fphi))*cos((4*pi/3.)+(1./3)
 
 // ===== Cell size =====
 // --- Model from Du Plesis et al (1994) ---
-real dc = sqrt(Tor/(3.*fphi))*fdp;  // in m
+real dc = sqrt(Tor/(3.*fphi))*dp;  // in m
 
 // ===== Specific interfacial area =====
 // --- Model from Du Plesis et al (1994) ---
@@ -169,7 +169,7 @@ real asf = (3./dc)*(3.-Tor)*(Tor-1.); // in m^2/m^3
 // ===== Permeability =====
 // --- Model from Calmidi (1998) ---
 real rfip=1.18*sqrt((1-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04)); 		// filament to pore size ratio, in m/m
-real fK=0.00073*(fdp^2)*((1-fphi)^(-0.224))*(rfip^(-1.11)); 		// in m^2
+real fK=0.00073*(dp^2)*((1-fphi)^(-0.224))*(rfip^(-1.11)); 		// in m^2
 
 // --- Model from Du Plesis et al (1994) ---
 //~ func K = square(phi*dc)/(36.*Tor*(3.-Tor));		// in m^2
@@ -186,6 +186,14 @@ real cF=0.00212*((1-fphi)^(-0.132))*(rfip^(-1.63)); 		// non-dimensional
 // Time and loop control
 // ==========================================================
 
+// ===== Loop control variables ======
+real error; // Difference between the current and previous iteration
+real outflux; // Velocity dot product with the normal vector at the outlet
+real maxError = 1e-6; // Maximum error tolerance for convergence
+
+// ===== Time control variables ======
+int maxIter = 100; // Maximum number of iterations for the time loop
+real dt = 0.00001; // Time step size, either in seconds or in a non-dimensional form
 
 // -------------------------------------------------------------------------------- //
 //																					//
@@ -201,6 +209,10 @@ real cF=0.00212*((1-fphi)^(-0.132))*(rfip^(-1.63)); 		// non-dimensional
 int nx, ny;
 string distX, distY; 
 string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+
+// ===== Declare mesh as a global variable =====
+// This allows the mesh to be accessed throughout the script without needing to pass it as a parameter
+mesh Th;
 
 // ===== Read each line of the file to save its content =====
 {
@@ -219,12 +231,25 @@ cout << "Mesh name: " << meshName << endl;
 // ===== Check if mesh file exists =====
 // If the mesh file does not exist, generate it
 try{
-    mesh Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
     if(bPlotMesh) plot(Th, wait = true, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
 }
 catch(...){
     cout <<  "                 -----> File not found. GENERATE THE MESH." << endl;
     exit(0);
+}
+
+// Check if the mesh is correct or not
+if(bPlotMesh){
+    string checkMesh = "N"; // Variable to check if the porosity field is correct
+    cout << "Is the mesh correct? Y for yes, anything else for no: "; cin >> checkMesh;
+    if (checkMesh != "Y" && checkMesh != "y") {
+        cout << "Mesh is not correct. Please check the input parameters." << endl;
+        exit(0);
+    }
+    else {
+        cout << "Mesh is correct." << endl;
+    }
 }
 
 // ===== Wall identification =====
@@ -238,6 +263,42 @@ int Inlet = 4;
 // Create finite element spaces
 // ==========================================================
 
+// ===== Declare finite element base ======
+fespace Vh(Th, P2); // P2 elements
+
+// ===== Define finite element spaces ======
+// --- Main variables ---
+// Set to zero as the initial condition
+Vh u=0, v=0, p=0;
+
+// --- Test or weight functions ---
+Vh ut, vt, q;
+
+// --- Auxiliary variables ---
+Vh ua, uaa, va, vaa;
+
+// --- Intrinsic velocity field ---
+Vh uphi=u/fphi, vphi=v/fphi;
+
+// --- Previous time step variables or old values ---
+Vh uold=u, vold=v, pold=p;
+
+// --- Porosity as a finite element space ---
+Vh phi=fphi;
+
+// Check if the provided porosity is physically correct or not
+if(bPlotMesh){
+    plot(phi, wait = true, cmm = "Porosity field", fill = true, value = true); // Plot the porosity field for checking
+    string checkPorosity = "N"; // Variable to check if the porosity field is correct
+    cout << "Is porosity field correct? Y for yes, anything else for no: "; cin >> checkPorosity;
+    if (checkPorosity != "Y" && checkPorosity != "y") {
+        cout << "Porosity field is not correct. Please check the input parameters." << endl;
+        exit(0);
+    }
+    else {
+        cout << "Porosity field is correct." << endl;
+    }
+}
 
 // -------------------------------------------------------------------------------- //
 //																					//
