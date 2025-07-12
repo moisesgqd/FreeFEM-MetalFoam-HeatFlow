@@ -129,6 +129,8 @@ real Ac = H * W; // cross-sectional area of channel
 real u0 = Vflow / Ac; // average flow velocity
 real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
 
+real xiL = H/L; // channel aspect ratio, non-dimensional
+
 // ==================================================================================
 // Metal foam properties          NOTE: MOST OF THIS SUBSECTION IS MANUALLY MODIFIED
 // ==================================================================================
@@ -150,6 +152,8 @@ func fphi = phib + (phit - phib)*square(y);
 // ===== Pore size =====
 // --- Constant pore size ---
 real dp = 0.002;
+
+real xip = H/dp; // Pore aspect ratio, non-dimensional
 
 // ===== Filament diameter =====
 // --- Model from Calmidi and Mahajan (2000) ---
@@ -307,19 +311,94 @@ if(bPlotMesh){
 //																					//
 // -------------------------------------------------------------------------------- //
 
+// ===== Boundary conditions =====
+// Inlet velocity function
+// This function defines the velocity at the inlet of the duct
+func uy = 6*y - 6*(y^2);
+
 // ==========================================================
 // Compressible modified Navier-Stokes equations
 // ==========================================================
 
+// ===== Solve compressible part of modifies Navier-Stokes equations =====
+// In the x-direction
+varf CompressibleX(ua, uT)
+    = int2d(Th)(
+        ua*uT/dt 
+        + dx(ua)*dx(uT) + dy(ua)*dy(uT)
+    )
+    + int2d(Th)(
+        (uT/dt)*convect([ReH*uphi,ReH*vphi], -dt, uold)
+    )
+    + on(Inlet, ua = uy) // Inlet function for x-velocity along the y-axis
+    + on(TopWall, BottomWall, ua = 0) // No-slip condition on walls
+;
+
+// In the y-direction
+varf CompressibleY(va, vT)
+    = int2d(Th)(
+        va*vT/dt 
+        + dx(va)*dx(vT) + dy(va)*dy(vT)
+    )
+    + int2d(Th)(
+        (vT/dt)*convect([ReH*uphi,ReH*vphi], -dt, vold)
+    )
+    + on(Inlet, TopWall, BottomWall, va = 0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
+;
 
 // ==========================================================
 // Pressure correction equation
 // ==========================================================
 
+// Using the continuity equation to reduce the equation
+// Outlet to the ambient, with atmosferic pressure of zero
+varf Pressure(p, q)
+	= int2d(Th)(
+		(square(xip)*phi/xiL)*(
+            dx(p)*dx(q)	+ dy(p)*dy(q))
+	)
+	+ int2d(Th)(
+		q*(
+            dx(uaa)+ dy(vaa)
+		    + (square(xip)/xiL)*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
+		)
+	)
+	+ on(Outlet, p=0)
+;
 
 // ==========================================================
 // Applied pressure correction
 // ==========================================================
+
+// ===== Applied pressure correction to the velocity field =====
+// In the x-direction
+varf CorrectionX(u, uW)
+    = int2d(Th)(
+        u*uW/dt
+    )
+    - int2d(Th)(
+        uW*(
+            uaa
+            + (square(xip)*phi/xiL)*dx(p)
+        )
+    )
+    + on(Inlet, u=uy)
+    + on(TopWall, BottomWall, u=0) // No-slip condition on walls
+;
+
+// In the y-direction
+varf CorrectionY(v, vW)
+    = int2d(Th)(
+        v*vW/dt
+    )
+    - int2d(Th)(
+        vW*(
+            vaa
+            + (square(xip)*phi/xiL)*dy(p)
+        )
+    )
+    + on(Inlet, TopWall, BottomWall, v=0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
+;
 
 // -------------------------------------------------------------------------------- //
 //																					//
