@@ -409,10 +409,40 @@ varf CorrectionY(v, vW)
 // ==========================================================
 // Define stiffness matrices
 // ==========================================================
+matrix AcomX;			// Matrix for the velocity compressible part in X-direction
+matrix AcomY;			// Matrix for the velocity compressible part in Y-direction
+matrix Apres;			// Matrix for the pressure estimation
+matrix AcorX;			// Matrix for the velocity correction part in X-direction
+matrix AcorY;			// Matrix for the velocity correction part in Y-direction
+
 
 // ==========================================================
 // Define right hand side vectors
 // ==========================================================
+real[int] bcomX(Vh.ndof);			// Vector for the velocity compressible part in X-direction
+real[int] bcomY(Vh.ndof);			// Vector for the velocity compressible part in Y-direction
+real[int] bpres(Vh.ndof);			// Vector for the pressure estimation
+real[int] bcorX(Vh.ndof);			// Vector for the velocity correction part in X-direction
+real[int] bcorY(Vh.ndof);			// Vector for the velocity correction part in Y-direction
+
+
+// ==========================================================
+// Construct the linear system
+// ==========================================================
+
+// ===== Assemble the stiffness matrices =====
+AcomX = CompressibleX(Vh,Vh);
+AcomY = CompressibleY(Vh,Vh);
+Apres = Pressure(Vh,Vh);
+AcorX = CorrectionX(Vh,Vh);
+AcorY = CorrectionY(Vh,Vh);
+
+// ===== Assemble the right hand side vectors =====
+bcomX = CompressibleX(0,Vh);
+bcomY = CompressibleY(0,Vh);
+bpres = Pressure(0,Vh);
+bcorX = CorrectionX(0,Vh);
+bcorY = CorrectionY(0,Vh);
 
 // -------------------------------------------------------------------------------- //
 //																					//
