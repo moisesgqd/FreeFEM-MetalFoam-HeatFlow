@@ -26,7 +26,7 @@ load "iovtk"
 
 // ===== Enable debugging options ======
 // For sanity check
-verbosity = true; // Set to true to enable detailed output
+verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
 bool bExportData = false; // Set to true to export data in dat format
@@ -197,7 +197,7 @@ real outflux; // Velocity dot product with the normal vector at the outlet
 real maxError = 1e-6; // Maximum error tolerance for convergence
 
 // ===== Time control variables ======
-int maxIter = 100; // Maximum number of iterations for the time loop
+int maxIter = 10; // Maximum number of iterations for the time loop
 real dt = 0.00001; // Time step size, either in seconds or in a non-dimensional form
 
 // -------------------------------------------------------------------------------- //
@@ -288,6 +288,10 @@ Vh uphi=u/fphi, vphi=v/fphi;
 // --- Previous time step variables or old values ---
 Vh uold=u, vold=v, pold=p;
 
+// --- Solution spaces ---
+Vh solComX, solComY, solPres;
+Vh solCorX, solCorY;
+
 // --- Porosity as a finite element space ---
 Vh phi=fphi;
 
@@ -315,6 +319,7 @@ if(bPlotMesh){
 // Inlet velocity function
 // This function defines the velocity at the inlet of the duct
 func uy = 6*y - 6*(y^2);
+u = uy; // Update initial condition
 
 // ==========================================================
 // Compressible modified Navier-Stokes equations
@@ -450,45 +455,87 @@ bcorY = CorrectionY(0,Vh);
 //																					//
 // -------------------------------------------------------------------------------- //
 
-// ==========================================================
-// Update fields
-// ==========================================================
+// ===== Initialize the time loop =====
+cout << "Starting time loop with maximum iterations: " << maxIter << endl;
 
-// ==========================================================
-// Compressible part
-// ==========================================================
+for(int n=0; n < maxIter; n++){
 
-// ===== Intrinsic velocity field =====
+    // ==========================================================
+    // Update main variables
+    // ==========================================================
+    
+    pold = p; // Store the old pressure field
+    uold = u; // Store the old x-velocity field
+    vold = v; // Store the old y-velocity field
 
-// ===== Reconstruct RHS vectors =====
+    // ==========================================================
+    // Compressible part
+    // ==========================================================
 
-// ===== Solve =====
+    // ===== Intrinsic velocity field =====
+    uphi = uold / fphi; // Update intrinsic x-velocity field
+    vphi = vold / fphi; // Update intrinsic y-velocity field
 
-// ==========================================================
-// Pressure
-// ==========================================================
+    // ===== Reconstruct RHS vectors =====
+    bcomX = CompressibleX(0,Vh);
+    bcomY = CompressibleY(0,Vh);
 
-// ===== Auxliary fields =====
+    // ===== Solve =====
+    solComX[] = AcomX^-1 * bcomX;
+    solComY[] = AcomY^-1 * bcomY;
 
-// ===== Reconstruct RHS vectors =====
+    // --- and the update compressible velocity fields ---
+    ua = solComX;
+    va = solComY;
 
-// ===== Solve =====
+    // ==========================================================
+    // Pressure
+    // ==========================================================
 
-// ==========================================================
-// Correction of velocity field
-// ==========================================================
+    // ===== Auxliary fields =====
+    // --- Update intrinsic velocity fields for pressure correction
+    uphi=ua/phi;
+    vphi=va/phi;
 
-// ===== Reconstruct RHS vectors =====
+    // --- Auxiliary variables for pressure correction ---
+    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*ua+dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
+    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*va+dx(phi)*dx(vphi)+dy(phi)*dy(vphi);
+    
+    // ===== Reconstruct RHS vectors =====
+    bpres = Pressure(0,Vh);
+    
+    // ===== Solve =====
+    solPres[] = Apres^-1 * bpres;
+    p = solPres;	 // Update pressure field
 
-// ===== Solve =====
+    // ==========================================================
+    // Correction of velocity field
+    // ==========================================================
 
-// ==========================================================
-// Error and outputs
-// ==========================================================
+    // ===== Reconstruct RHS vectors =====
+    bcorX = CorrectionX(0,Vh);
+    bcorY = CorrectionY(0,Vh);
 
-// ===== Calculate error and outflux =====
+    // ===== Solve =====
+    solCorX[] = AcorX^-1 * bcorX;
+    solCorY[] = AcorY^-1 * bcorY;
 
-// ===== Export data if conditions are met =====
+    // --- and update fields, just in case ---
+    u=solCorX;
+    v=solCorY;
 
-// ===== Apply stoping criteria =====
+    // ==========================================================
+    // Error and outputs
+    // ==========================================================
 
+    // ===== Calculate error and outflux =====
+    error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
+    outflux = int1d(Th)(u*N.x + v*N.y);
+
+    cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << endl;
+
+    // ===== Export data if conditions are met =====
+
+    // ===== Apply stoping criteria =====
+
+}
