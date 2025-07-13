@@ -147,7 +147,8 @@ real phit = 0.97;   // porosity on top wall
 // Declare if porosity is constant or varies within the domain to print in logs file
 bool isPorosityConstant = true; // Set to true if porosity is constant, false if it varies within the domain
 
-func fphi = phib + (phit - phib)*square(y)/square(H);
+// func fphi = phib + (phit - phib)*square(y)/square(H);
+func fphi = phib + (phit - phib)*square(y);
 
 // ===== Pore size =====
 // --- Constant pore size ---
@@ -157,31 +158,31 @@ real xip = H/dp; // Pore aspect ratio, non-dimensional
 
 // ===== Filament diameter =====
 // --- Model from Calmidi and Mahajan (2000) ---
-real fdf = 1.18*dp*sqrt((1.-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04));  // in m
+func fdf = 1.18*dp*sqrt((1.-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04));  // in m
 
 // ===== Tortuosity =====
 // --- Model from Du Plesis et al (1994) ---
-real Tor = 1./((3./(4*fphi))+((sqrt(9.-8.*fphi))/(2.*fphi))*cos((4*pi/3.)+(1./3)*acos((8.*square(fphi)-36.*fphi+27.)/(((9.-8.*fphi)^(3./2)))))); // in m/m
+func Tor = 1./((3./(4*fphi))+((sqrt(9.-8.*fphi))/(2.*fphi))*cos((4*pi/3.)+(1./3)*acos((8.*square(fphi)-36.*fphi+27.)/(((9.-8.*fphi)^(3./2)))))); // in m/m
 
 // ===== Cell size =====
 // --- Model from Du Plesis et al (1994) ---
-real dc = sqrt(Tor/(3.*fphi))*dp;  // in m
+func dc = sqrt(Tor/(3.*fphi))*dp;  // in m
 
 // ===== Specific interfacial area =====
 // --- Model from Du Plesis et al (1994) ---
-real asf = (3./dc)*(3.-Tor)*(Tor-1.); // in m^2/m^3
+func asf = (3./dc)*(3.-Tor)*(Tor-1.); // in m^2/m^3
 
 // ===== Permeability =====
 // --- Model from Calmidi (1998) ---
-real rfip=1.18*sqrt((1-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04)); 		// filament to pore size ratio, in m/m
-real fK=0.00073*(dp^2)*((1-fphi)^(-0.224))*(rfip^(-1.11)); 		// in m^2
+func rfip=1.18*sqrt((1-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04)); 		// filament to pore size ratio, in m/m
+func fK=0.00073*(dp^2)*((1-fphi)^(-0.224))*(rfip^(-1.11)); 		// in m^2
 
 // --- Model from Du Plesis et al (1994) ---
 //~ func K = square(phi*dc)/(36.*Tor*(3.-Tor));		// in m^2
 
 // ===== Forchheimer coefficient =====
 // --- Model from Calmidi (1998) ---
-real cF=0.00212*((1-fphi)^(-0.132))*(rfip^(-1.63)); 		// non-dimensional
+func cF=0.00212*((1-fphi)^(-0.132))*(rfip^(-1.63)); 		// non-dimensional
 
 // --- Model from Du Plesis et al (1994) ---
 //~ func cF = 2.05*Tor*(Tor-1)*sqrt(K)/(square(phi)*(3.-Tor)*dc);
@@ -458,84 +459,87 @@ bcorY = CorrectionY(0,Vh);
 // ===== Initialize the time loop =====
 cout << "Starting time loop with maximum iterations: " << maxIter << endl;
 
-// for(int n=0; n < maxIter; n++){
+for(int n=0; n < maxIter; n++){
 
-//     // ==========================================================
-//     // Update main variables
-//     // ==========================================================
+    // ==========================================================
+    // Update main variables
+    // ==========================================================
     
-//     pold = p; // Store the old pressure field
-//     uold = u; // Store the old x-velocity field
-//     vold = v; // Store the old y-velocity field
+    pold = p; // Store the old pressure field
+    uold = u; // Store the old x-velocity field
+    vold = v; // Store the old y-velocity field
 
-//     // ==========================================================
-//     // Compressible part
-//     // ==========================================================
+    // ==========================================================
+    // Compressible part
+    // ==========================================================
 
-//     // ===== Intrinsic velocity field =====
-//     uphi = uold / fphi; // Update intrinsic x-velocity field
-//     vphi = vold / fphi; // Update intrinsic y-velocity field
+    // ===== Intrinsic velocity field =====
+    uphi = uold / fphi; // Update intrinsic x-velocity field
+    vphi = vold / fphi; // Update intrinsic y-velocity field
 
-//     // ===== Reconstruct RHS vectors =====
-//     bcomX = CompressibleX(0,Vh);
-//     bcomY = CompressibleY(0,Vh);
+    // ===== Reconstruct RHS vectors =====
+    bcomX = CompressibleX(0,Vh);
+    bcomY = CompressibleY(0,Vh);
 
-//     // ===== Solve =====
-//     solComX[] = AcomX^-1 * bcomX;
-//     solComY[] = AcomY^-1 * bcomY;
+    // ===== Solve =====
+    solComX[] = AcomX^-1 * bcomX;
+    solComY[] = AcomY^-1 * bcomY;
 
-//     // --- and the update compressible velocity fields ---
-//     ua = solComX;
-//     va = solComY;
+    // --- and the update compressible velocity fields ---
+    ua = solComX;
+    va = solComY;
 
-//     // ==========================================================
-//     // Pressure
-//     // ==========================================================
+    // ==========================================================
+    // Pressure
+    // ==========================================================
 
-//     // ===== Auxliary fields =====
-//     // --- Update intrinsic velocity fields for pressure correction
-//     uphi=ua/phi;
-//     vphi=va/phi;
+    // ===== Auxliary fields =====
+    // --- Update intrinsic velocity fields for pressure correction
+    uphi=ua/phi;
+    vphi=va/phi;
 
-//     // --- Auxiliary variables for pressure correction ---
-//     uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*ua+dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
-//     vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*va+dx(phi)*dx(vphi)+dy(phi)*dy(vphi);
+    // --- Auxiliary variables for pressure correction ---
+    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*ua+dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
+    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*va+dx(phi)*dx(vphi)+dy(phi)*dy(vphi);
     
-//     // ===== Reconstruct RHS vectors =====
-//     bpres = Pressure(0,Vh);
+    // ===== Reconstruct RHS vectors =====
+    bpres = Pressure(0,Vh);
     
-//     // ===== Solve =====
-//     solPres[] = Apres^-1 * bpres;
-//     p = solPres;	 // Update pressure field
+    // ===== Solve =====
+    solPres[] = Apres^-1 * bpres;
+    p = solPres;	 // Update pressure field
 
-//     // ==========================================================
-//     // Correction of velocity field
-//     // ==========================================================
+    // ==========================================================
+    // Correction of velocity field
+    // ==========================================================
 
-//     // ===== Reconstruct RHS vectors =====
-//     bcorX = CorrectionX(0,Vh);
-//     bcorY = CorrectionY(0,Vh);
+    // ===== Reconstruct RHS vectors =====
+    bcorX = CorrectionX(0,Vh);
+    bcorY = CorrectionY(0,Vh);
 
-//     // ===== Solve =====
-//     solCorX[] = AcorX^-1 * bcorX;
-//     solCorY[] = AcorY^-1 * bcorY;
+    // ===== Solve =====
+    solCorX[] = AcorX^-1 * bcorX;
+    solCorY[] = AcorY^-1 * bcorY;
 
-//     // --- and update fields, just in case ---
-//     u=solCorX;
-//     v=solCorY;
+    // --- and update fields, just in case ---
+    u=solCorX;
+    v=solCorY;
 
-//     // ==========================================================
-//     // Error and outputs
-//     // ==========================================================
+    // ==========================================================
+    // Error and outputs
+    // ==========================================================
 
-//     // ===== Calculate error and outflux =====
-//     error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
-//     outflux = int1d(Th)(u*N.x + v*N.y);
+    // ===== Calculate error and outflux =====
+    error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
+    outflux = int1d(Th)(u*N.x + v*N.y);
 
-//     cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << endl;
+    cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << endl;
 
-//     // ===== Export data if conditions are met =====
+    // ===== Plot data to verify
+    plot(u, wait = true, cmm = "X-velocity field at iteration " + n, value = true);
 
-//     // ===== Apply stoping criteria =====
+    // ===== Export data if conditions are met =====
 
-// }
+    // ===== Apply stoping criteria =====
+
+}

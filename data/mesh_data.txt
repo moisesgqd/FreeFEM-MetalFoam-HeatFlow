@@ -2,4 +2,4 @@ nx  100
 ny  50
 distX   trigo
 distY   trigo
-dim     dim
+dim     non
