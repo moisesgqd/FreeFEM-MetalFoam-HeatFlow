@@ -1,4 +1,17 @@
-# About the code
+# FreeFem++ Simulation of Fluid Flow and Heat Transfer in a Functionally Graded Metal Foam
+
+## Description
+
+This project solves a system of nonlinear PDEs describing incompressible fluid flow and heat transfer through a metal foam filled channel using the Finite Element Method (FEM) via the specialized programming language: FreeFEM++. The model accounts for Darcy-Forchheimer-Brinkman element of drag, also heat conduction and convection between the fluid and solid phases. It supports time-dependent and steady-state simulations.
+
+## File structure
+
+Files are distributed in four carpets:
+
+- data, which contains the input information like thermophysical properties and their values, mesh nodes per axis, channel size, inlet velocity, etc.
+- mesh, where the different meshes are saved for future implementation, the name of the meshes contains enough information to characterize them.
+- results, here are the outputs obtained from the simulations in different formats like .dat, .txt, .vtu, etc.
+- src, folder containing the solvers, one for the fluid dynamics problems, and other for the heat transfer.
 
 ## About data files
 
