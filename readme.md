@@ -74,14 +74,33 @@ The contents in the mesh_data.txt file represent:
 
 The **distX** and **distY** options must correspond to one of the following options:
 
-- "linear", if the nodes ougth be distributed in a uniform manner.
-- "quad", if nodes are spatiated with the square of the distance.
-- "trigo", if nodes are spatiated as a trigonometric function of the distance.
+- linear, if the nodes ougth be distributed in a uniform manner.
+- quad, if nodes are spatiated with the square of the distance.
+- trigo, if nodes are spatiated as a trigonometric function of the distance.
 
 #### About the variables dimensions
 
 The option **dim** can take the following text options:
 
-- "dim", if the variables are dimensional, e.g., velocity takes m/s units.
-- "noH", if the variables have been normalized using only channel height H as a characteristic dimension.
-- "non", if the variables have been normalized using height H and length L as characteristic dimensions for the X and Y variables.
+- dim, if the variables are dimensional, e.g., velocity takes m/s units.
+- noH, if the variables have been normalized using only channel height H as a characteristic dimension.
+- non, if the variables have been normalized using height H and length L as characteristic dimensions for the X and Y variables.
+
+## Physics and Model Details
+
+### Governing Equations
+
+#### Assumptions
+
+- 2D simulation, where $x$ is the longitudinal axis and $y$ goes along the transversal axis.
+- Incompresible fluid, usually water.
+- Laminar flow (channel height Reynolds number less than 2300).
+- Thermophysical properties are uniform and constant along the macroscopic domain.
+
+#### Modified Navier-Stokes
+
+For an variable porosity medium.
+
+#### Local thermal no-equilibrium
+
+Considering each phase at different local volumetric averages.
