@@ -29,7 +29,7 @@ load "iovtk"
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
-bool bExportData = false; // Set to true to export data in dat format
+bool bExportData = true; // Set to true to export data in dat format
 
 // ===== Absolute and relative paths =====
 // To read and save data files
@@ -197,10 +197,16 @@ real error; // Difference between the current and previous iteration
 real outflux; // Velocity dot product with the normal vector at the outlet
 real maxError = 1e-6; // Maximum error tolerance for convergence
 
-// ===== Time control variables ======
-int maxIter = 10; // Maximum number of iterations for the time loop
-real dt = 0.00001; // Time step size, either in seconds or in a non-dimensional form
+// ===== Output variables ======
+real avgUin, avgUout; // Average velocities at the inlet and outlet
 
+// ===== Time control variables ======
+int maxIter = 1e6; // Maximum number of iterations for the time loop
+real dt = 0.0000001; // Time step size, either in seconds or in a non-dimensional form
+
+// ===== Identifiers =====
+string UFile, VFile, PFile; // Output files for velocity and pressure
+string Udir, Vdir, Pdir; // Directories to save the data files
 // -------------------------------------------------------------------------------- //
 //																					//
 // 	      M E S H   H A N D L I N G   A N D   F E M   S P A C E   S E T U P         //
@@ -320,7 +326,6 @@ if(bPlotMesh){
 // Inlet velocity function
 // This function defines the velocity at the inlet of the duct
 func uy = 6*y - 6*(y^2);
-u = uy; // Update initial condition
 
 // ==========================================================
 // Compressible modified Navier-Stokes equations
@@ -334,7 +339,7 @@ varf CompressibleX(ua, uT)
         + dx(ua)*dx(uT) + dy(ua)*dy(uT)
     )
     + int2d(Th)(
-        (uT/dt)*convect([ReH*uphi,ReH*vphi], -dt, uold)
+        (uT/dt)*convect([ReH*uphi,ReH*xiL*vphi], -dt, uold)
     )
     + on(Inlet, ua = uy) // Inlet function for x-velocity along the y-axis
     + on(TopWall, BottomWall, ua = 0) // No-slip condition on walls
@@ -343,11 +348,11 @@ varf CompressibleX(ua, uT)
 // In the y-direction
 varf CompressibleY(va, vT)
     = int2d(Th)(
-        va*vT/dt 
-        + dx(va)*dx(vT) + dy(va)*dy(vT)
+        xiL*va*vT/dt 
+        + xiL*dx(va)*dx(vT) + xiL*dy(va)*dy(vT)
     )
     + int2d(Th)(
-        (vT/dt)*convect([ReH*uphi,ReH*vphi], -dt, vold)
+        (xiL*vT/dt)*convect([ReH*uphi,ReH*xiL*vphi], -dt, vold)
     )
     + on(Inlet, TopWall, BottomWall, va = 0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
 ;
@@ -395,7 +400,7 @@ varf CorrectionX(u, uW)
 // In the y-direction
 varf CorrectionY(v, vW)
     = int2d(Th)(
-        v*vW/dt
+        xiL*v*vW/dt
     )
     - int2d(Th)(
         vW*(
@@ -456,6 +461,8 @@ bcorY = CorrectionY(0,Vh);
 //																					//
 // -------------------------------------------------------------------------------- //
 
+real inltavgU, outavgU;
+
 // ===== Initialize the time loop =====
 cout << "Starting time loop with maximum iterations: " << maxIter << endl;
 
@@ -499,8 +506,8 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*ua+dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
-    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+va^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*(va/(square(phi)))*dy(phi))*va+dx(phi)*dx(vphi)+dy(phi)*dy(vphi);
+    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*ua+dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
+    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*xiL*va+xiL*dx(phi)*dx(vphi)+xiL*dy(phi)*dy(vphi);
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
@@ -532,14 +539,48 @@ for(int n=0; n < maxIter; n++){
     // ===== Calculate error and outflux =====
     error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
     outflux = int1d(Th)(u*N.x + v*N.y);
+    avgUin = int1d(Th, Inlet)(u);
+    avgUout = int1d(Th, Outlet)(u);
 
-    cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << endl;
+    cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << " . Average inlet U = " << avgUin << " and oulet = " << avgUout << endl;
 
-    // ===== Plot data to verify
-    plot(u, wait = true, cmm = "X-velocity field at iteration " + n, value = true);
+    
+    if(n%10 == 0){
+        // ===== Plot data to verify    
+        plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
 
-    // ===== Export data if conditions are met =====
+        // ===== Export data if conditions are met =====
+        if(n%100 == 0 && bExportData){
+            // --- ofstream names ---
+            UFile = "VelocityU" + n;
+            VFile = "VelocityV" + n;
+            PFile = "Pressure" + n;
 
-    // ===== Apply stoping criteria =====
+            // --- Directories ---
+            Udir = home + "results/Velocity_X/velocity_U_" + n + ".txt";
+            Vdir = home + "results/Velocity_Y/velocity_V_" + n + ".txt";
+            Pdir = home + "results/Pressure/pressure_" + n + ".txt";
 
+            // --- Export data to files ---
+            // Export velocity on x direction
+            ofstream UFile(Udir);
+            UFile << u[] << endl;
+            
+            // Exiort velocity on y direction
+            ofstream VFile(Vdir);
+            VFile << v[] << endl;
+
+            // Export pressure
+            ofstream PFile(Pdir);
+            PFile << p[] << endl;
+
+            if(error < maxError ){
+                cout << "Convergence achieved with error: " << error << endl;
+                cout << "Average inlet U = " << avgUin << " and outlet = " << avgUout << endl;
+                cout << "Exiting time loop." << endl;
+                break; // Exit the loop if convergence is achieved
+            }
+        }
+        // ===== Apply stoping criteria =====
+    }
 }
