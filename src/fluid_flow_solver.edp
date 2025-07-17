@@ -574,6 +574,7 @@ for(int n=0; n < maxIter; n++){
             ofstream PFile(Pdir);
             PFile << p[] << endl;
 
+            // ===== Apply stoping criteria =====
             if(error < maxError ){
                 cout << "Convergence achieved with error: " << error << endl;
                 cout << "Average inlet U = " << avgUin << " and outlet = " << avgUout << endl;
@@ -581,6 +582,5 @@ for(int n=0; n < maxIter; n++){
                 break; // Exit the loop if convergence is achieved
             }
         }
-        // ===== Apply stoping criteria =====
     }
 }
