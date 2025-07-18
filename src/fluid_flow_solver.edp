@@ -573,14 +573,14 @@ for(int n=0; n < maxIter; n++){
             // Export pressure
             ofstream PFile(Pdir);
             PFile << p[] << endl;
+        }
 
-            // ===== Apply stoping criteria =====
-            if(error < maxError ){
-                cout << "Convergence achieved with error: " << error << endl;
-                cout << "Average inlet U = " << avgUin << " and outlet = " << avgUout << endl;
-                cout << "Exiting time loop." << endl;
-                break; // Exit the loop if convergence is achieved
-            }
+        // ===== Apply stoping criteria =====
+        if(error < maxError){
+            cout << "Convergence achieved with error: " << error << endl;
+            cout << "Average inlet U = " << avgUin << " and outlet = " << avgUout << endl;
+            cout << "Exiting time loop." << endl;
+            break; // Exit the loop if convergence is achieved
         }
     }
 }
