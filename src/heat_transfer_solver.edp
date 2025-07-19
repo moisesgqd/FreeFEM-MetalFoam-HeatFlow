@@ -1,0 +1,362 @@
+//////////////////////////////////////////////////////////////
+// Heat Transfer Solver for Porous Duct
+// File: heat_transfer_solver.edp
+// Description: Simulation of fluid flow and heat transfer in a porous duct
+// Author: Moises Quintanilla
+// Date: 18-07-2025
+//////////////////////////////////////////////////////////////
+
+// -------------------------------------------------------------------------------- //
+//																					//
+//       	    E N V I R O N M E N T   A N D   D E B U G   S E T U P   		    //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Package loading
+// ==========================================================
+
+// ===== Exporting data in VTU format =====
+// For later visualization in Paraview
+load "iovtk"
+
+// ==========================================================
+// Debugging Options
+// ==========================================================
+
+// ===== Enable debugging options ======
+// For sanity check
+verbosity = false; // Set to true to enable detailed output
+bool bPlotMesh = true; // Set to true to plot the mesh
+bool bPlotData = false; // Set to true to plot the data
+bool bExportData = true; // Set to true to export data in dat format
+
+// ===== Absolute and relative paths =====
+// To read and save data files
+string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+string physicalFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
+string weatherFile = home + "data/weather_data.txt"; // file containing weather data
+string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
+string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	    I N P U T   A N D   P A R A M E T E R   I N I T I A L I Z A T I O N   		//
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Define variables to store physical properties
+// ==========================================================
+
+// ===== Define variables to store values ====== 
+string property, blank;
+real value;
+real[string] properties;
+
+// ==========================================================
+// Get physical properties
+// ==========================================================
+
+{
+    ifstream PhysicalData(physicalFile);
+    for(int i=0; i<11; i++) {
+        PhysicalData >> property >> value;
+        properties[property] = value;
+    }
+} // File will close automatically after this block
+
+// ===== Assign physical properties to variables ======
+real g = properties["g"];
+real sgm = properties["sgm"];
+real eC = properties["eC"];
+real eP = properties["eP"];
+real rhof = properties["rhof"];
+real cpf = properties["cpf"];
+real mu = properties["mu"];
+real kf = properties["kf"];
+real rhos = properties["rhos"];
+real cps = properties["cps"];
+real ks = properties["ks"];
+
+// ===== Calculate derived physical properties ======
+real nu = mu / rhof; // kinematic viscosity
+real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
+real alphas = ks / (rhos * cps); // thermal diffusivity of solid
+real Pr = cpf * mu / kf; // Prandtl number
+
+// ==========================================================
+// Get weather data
+// ==========================================================
+
+// ===== Define variables to store weather data ======
+int n=27; // size of the arrays
+string[int] hour(n);
+real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
+
+// ===== Read weather data from file ======
+{
+    ifstream WeatherData(weatherFile);
+    WeatherData >> blank; // ignore first line (header)
+    for(int i=0; i<n; i++){
+        WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
+    }
+} // File will close automatically after this block
+
+// ==========================================================
+// Read channel characteristics
+// ==========================================================
+
+// ===== Read channel characteristics from file ======
+{
+    ifstream ChannelData(channelFile);
+    for(int i=0; i<6; i++){
+        ChannelData >> property >> value;
+        properties[property] = value;
+    }
+} // File will close automatically after this block
+
+// ===== Assign channel characteristics to variables ======
+real L = properties["L"];
+real H = properties["H"];
+real W = properties["W"];
+real beta = properties["beta"];
+real Lgc = properties["Lgc"];
+real Vflow = properties["Vflow"];
+
+// ===== Calculate derived channel characteristics ======
+real Ac = H * W; // cross-sectional area of channel
+real u0 = Vflow / Ac; // average flow velocity
+real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
+
+real xiL = H/L; // channel aspect ratio, non-dimensional
+
+// ==================================================================================
+// Metal foam properties          NOTE: MOST OF THIS SUBSECTION IS MANUALLY MODIFIED
+// ==================================================================================
+
+// ===== Porosity =====
+// Inputs
+real yw = 0.;	// location of wall on y-axis
+real yc = 0.0125; 	// location of maximum or minimum in quadratic function
+real phib = 0.8; 	// porosity on bottom wall
+real phic = 0.9; 	// porosity on center
+real phit = 0.97;   // porosity on top wall
+
+// --- Proposed porosity scalar field ---
+// Declare if porosity is constant or varies within the domain to print in logs file
+bool isPorosityConstant = true; // Set to true if porosity is constant, false if it varies within the domain
+
+// func fphi = phib + (phit - phib)*square(y)/square(H);
+func fphi = phib + (phit - phib)*square(y);
+
+// ===== Pore size =====
+// --- Constant pore size ---
+real dp = 0.0025;
+
+real xip = H/dp; // Pore aspect ratio, non-dimensional
+
+// ===== Filament diameter =====
+// --- Model from Calmidi and Mahajan (2000) ---
+func fdf = 1.18*dp*sqrt((1.-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04));  // in m
+
+// ===== Tortuosity =====
+// --- Model from Du Plesis et al (1994) ---
+func Tor = 1./((3./(4*fphi))+((sqrt(9.-8.*fphi))/(2.*fphi))*cos((4*pi/3.)+(1./3)*acos((8.*square(fphi)-36.*fphi+27.)/(((9.-8.*fphi)^(3./2)))))); // in m/m
+
+// ===== Cell size =====
+// --- Model from Du Plesis et al (1994) ---
+func dc = sqrt(Tor/(3.*fphi))*dp;  // in m
+
+// ===== Specific interfacial area =====
+// --- Model from Du Plesis et al (1994) ---
+func asf = (3./dc)*(3.-Tor)*(Tor-1.); // in m^2/m^3
+
+// ===== Permeability =====
+// --- Model from Calmidi (1998) ---
+func rfip=1.18*sqrt((1-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04)); 		// filament to pore size ratio, in m/m
+func fK=0.00073*(dp^2)*((1-fphi)^(-0.224))*(rfip^(-1.11)); 		// in m^2
+
+// --- Model from Du Plesis et al (1994) ---
+//~ func K = square(phi*dc)/(36.*Tor*(3.-Tor));		// in m^2
+
+// ===== Forchheimer coefficient =====
+// --- Model from Calmidi (1998) ---
+func cF=0.00212*((1-fphi)^(-0.132))*(rfip^(-1.63)); 		// non-dimensional
+
+// --- Model from Du Plesis et al (1994) ---
+//~ func cF = 2.05*Tor*(Tor-1)*sqrt(K)/(square(phi)*(3.-Tor)*dc);
+
+
+// ==========================================================
+// Time and loop control
+// ==========================================================
+
+// ===== Loop control variables ======
+real maxError = 1e-6; // Maximum error tolerance for convergence
+
+// ===== Output variables ======
+
+
+// ===== Time control variables ======
+int maxIter = 1e6; // Maximum number of iterations for the time loop
+real dt = 0.0000001; // Time step size, either in seconds or in a non-dimensional form
+
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	      M E S H   H A N D L I N G   A N D   F E M   S P A C E   S E T U P         //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Read mesh data
+// ==========================================================
+
+// ===== Define variables to store mesh data ======
+int nx, ny;
+string distX, distY; 
+string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+
+// ===== Declare mesh as a global variable =====
+// This allows the mesh to be accessed throughout the script without needing to pass it as a parameter
+mesh Th;
+
+// ===== Read each line of the file to save its content =====
+{
+    ifstream meshData(meshDataFile);
+    meshData >> blank >> nx;
+    meshData >> blank >> ny;
+    meshData >> blank >> distX;
+    meshData >> blank >> distY;
+    meshData >> blank >> dim;
+} // File will close automatically after this block
+
+// ===== Generate and print out mesh name to console ======
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
+cout << "Mesh name: " << meshName << endl;
+
+// ===== Check if mesh file exists =====
+// If the mesh file does not exist, generate it
+try{
+    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    if(bPlotMesh) plot(Th, wait = false, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
+}
+catch(...){
+    cout <<  "                 -----> File not found. GENERATE THE MESH." << endl;
+    exit(0);
+}
+
+// Check if the mesh is correct or not
+if(bPlotMesh){
+    string checkMesh = "N"; // Variable to check if the porosity field is correct
+    cout << "Is the mesh correct? Y for yes, anything else for no: "; cin >> checkMesh;
+    if (checkMesh != "Y" && checkMesh != "y") {
+        cout << "Mesh is not correct. Please check the input parameters." << endl;
+        exit(0);
+    }
+    else {
+        cout << "Mesh is correct." << endl;
+    }
+}
+
+// ===== Wall identification =====
+// Since the square mesh was generated with the default FreeFEM options, the walls are identified as follows:
+int BottomWall = 1;
+int Outlet = 2;
+int TopWall= 3;
+int Inlet = 4;
+
+// ==========================================================
+// Create finite element spaces
+// ==========================================================
+
+// ===== Declare finite element base ======
+fespace Vh(Th, P2); // P2 elements
+
+// ===== Define finite element spaces ======
+// --- Porosity as a finite element space ---
+Vh phi=fphi;
+
+// Check if the provided porosity is physically correct or not
+if(bPlotMesh){
+    plot(phi, wait = false, cmm = "Porosity field", fill = true, value = true); // Plot the porosity field for checking
+    string checkPorosity = "N"; // Variable to check if the porosity field is correct
+    cout << "Is porosity field correct? Y for yes, anything else for no: "; cin >> checkPorosity;
+    if (checkPorosity != "Y" && checkPorosity != "y") {
+        cout << "Porosity field is not correct. Please check the input parameters." << endl;
+        exit(0);
+    }
+    else {
+        cout << "Porosity field is correct." << endl;
+    }
+}
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	              M A T H E M A T I C A L   M O D E L   S E T U P                   //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	                L I N E A R   S Y S T E M   A S S E M B L Y                     //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Define stiffness matrices
+// ==========================================================
+
+
+
+// ==========================================================
+// Define right hand side vectors
+// ==========================================================
+
+
+
+// ==========================================================
+// Construct the linear system
+// ==========================================================
+
+// ===== Assemble the stiffness matrices =====
+
+
+// ===== Assemble the right hand side vectors =====
+
+
+// -------------------------------------------------------------------------------- //
+//																					//
+//                       T I M E   S O L V E R   L O O P                            //
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ===== Initialize the time loop =====
+// cout << "Starting time loop with maximum iterations: " << maxIter << endl;
+
+// for(int n=0; n < maxIter; n++){
+
+    // ==========================================================
+    // Update main variables
+    // ==========================================================
+    
+
+
+    // ==========================================================
+    // Error and outputs
+    // ==========================================================
+
+    // ===== Calculate error and outflux =====
+
+    
+    // ===== Plot data to verify    
+
+
+    // ===== Export data if conditions are met =====
+
+
+    // ===== Apply stoping criteria =====
+
+// }
