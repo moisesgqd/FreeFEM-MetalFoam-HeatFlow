@@ -103,6 +103,9 @@ real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
     }
 } // File will close automatically after this block
 
+// ===== Assign weather data to variables ======
+real T0 = Tamb[0]; // Initial temperature of the fluid
+
 // ==========================================================
 // Read channel characteristics
 // ==========================================================
@@ -275,6 +278,18 @@ int Inlet = 4;
 fespace Vh(Th, P2); // P2 elements
 
 // ===== Define finite element spaces ======
+// --- Velocity fields ---
+Vh u, v, sqrtu, sqrtv, uaux, vaux;
+
+// --- Temperature fields ---
+Vh Of=T0, Os=T0;
+
+// --- Previous iteration fields ---
+Vh Ofold, Osold, Ofaux, Osaux;
+
+// --- Test or weighting functions ---
+Vh wf, ws;
+
 // --- Porosity as a finite element space ---
 Vh phi=fphi;
 
@@ -291,6 +306,43 @@ if(bPlotMesh){
         cout << "Porosity field is correct." << endl;
     }
 }
+
+// ==========================================================
+// Import veloctity fields
+// ==========================================================
+
+{
+    ifstream fileU(home + "results/Velocity_X/velocity_U_4000.txt");
+    fileU >> uaux[];
+}
+
+u[] = uaux[];
+
+{
+    ifstream fileV(home + "results/Velocity_Y/velocity_V_4000.txt");
+    fileV >> vaux[];
+}
+
+v[] = vaux[];
+
+sqrtu = sqrt(u); // Calculate the square root of the velocity field U
+
+{
+    ifstream fileSqrtU(home + "results/Velocity_X/sqrt_velocity_U_4000.txt");
+    fileSqrtU >> sqrtu[];
+}
+
+sqrtu[] = sqrtu[];
+
+{
+    ifstream fileSqrtV(home + "results/Velocity_Y/sqrt_velocity_V_4000.txt");
+    fileSqrtV >> sqrtv[];
+}
+
+sqrtv[] = sqrtv[];
+
+plot(u, wait = true, cmm = "Velocity field U", fill = true, value = true);
+plot(sqrtu, wait = false, cmm = "Sqrt Velocity field U", fill = true, value = true);
 
 // -------------------------------------------------------------------------------- //
 //																					//
