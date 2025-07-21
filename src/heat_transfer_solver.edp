@@ -190,6 +190,19 @@ func cF=0.00212*((1-fphi)^(-0.132))*(rfip^(-1.63)); 		// non-dimensional
 // --- Model from Du Plesis et al (1994) ---
 //~ func cF = 2.05*Tor*(Tor-1)*sqrt(K)/(square(phi)*(3.-Tor)*dc);
 
+// ===== Stagnant thermal conductivity =====
+// Constant parameter and structural function
+real r=0.09;
+real b=(-r+sqrt(r^2. + (2./sqrt(3))*(1-fphi)*(2.-r*(1+(4./sqrt(3))))))/((2./3)*(2.-r*(1+(4./sqrt(3)))));
+
+// For the solid
+real kstgs=(sqrt(3)/2.)/((r*b/((1+b)*ks/3))+((1-r)*b/((2./3)*b*ks))+(((sqrt(3)/2.)-b)/((4*r/(3*sqrt(3)))*b*ks)));
+
+// For the fluid
+real kstgf=(sqrt(3)/2.)/((r*b/(kf-(1+b)*kf/3))+((1-r)*b/(kf-(2./3)*b*kf))+(((sqrt(3)/2.)-b)/(kf-(4*r/(3*sqrt(3)))*b*kf)));
+
+// Effective stagnant thermal conductivity
+real kstgef=(sqrt(3)/2.)/((r*b/(kf+(1+b)*(ks-kf)/3))+((1-r)*b/(kf+(2./3)*b*(ks-kf)))+(((sqrt(3)/2.)-b)/(kf+(4*r/(3*sqrt(3)))*b*(ks-kf))));
 
 // ==========================================================
 // Time and loop control
@@ -279,7 +292,7 @@ fespace Vh(Th, P2); // P2 elements
 
 // ===== Define finite element spaces ======
 // --- Velocity fields ---
-Vh u, v, sqrtu, sqrtv, uaux, vaux;
+Vh u, v, sqrtu, sqrtv, uaux, vaux, uphi, vphi;
 
 // --- Temperature fields ---
 Vh Of=T0, Os=T0;
@@ -317,6 +330,7 @@ if(bPlotMesh){
 }
 
 u[] = uaux[];
+uphi = u/fphi;
 
 {
     ifstream fileV(home + "results/Velocity_Y/velocity_V_4000.txt");
@@ -324,6 +338,7 @@ u[] = uaux[];
 }
 
 v[] = vaux[];
+vphi = v/fphi;
 
 sqrtu = sqrt(u); // Calculate the square root of the velocity field U
 
@@ -343,6 +358,146 @@ sqrtv[] = sqrtv[];
 
 plot(u, wait = true, cmm = "Velocity field U", fill = true, value = true);
 plot(sqrtu, wait = false, cmm = "Sqrt Velocity field U", fill = true, value = true);
+
+// ==========================================================
+// Calculate top heat loss coefficient
+// ==========================================================
+
+// ===== Air properties models =====
+// Properties have been approximated and corrected for 0.767 atm, the atmospheric pressure in Mexico City
+// The temperatures MUST BE in Kelvin.
+
+// Density in kg/m^3
+func real AirDensity(real Temp){
+	return (7.9254079e-9)*(Temp^4)-(9.1923232e-6)*(Temp^3)+(4.0049854e-3)*(Temp^2)-0.78007994*Temp+58.475556;
+}
+
+// Specific heat in J/(kg-degK)
+func real AirSpecHeat(real Temp){
+	return -(1.32867133e-6)*(Temp^4)+0.0015839259*(Temp^3)-0.708214367*(Temp^2)+140.7945016*Temp-9495.720001;
+}
+
+// Thermal conductivity in W/(m-degK)
+func real AirThermConduc(real Temp){
+	return (7.4592075e-11)*(Temp^4)-(8.8005387e-8)*(Temp^3)+(3.8884941e-5)*(Temp^2)-(0.0075513952)*Temp+0.563371025;
+}
+
+// Thermal diffusivity in m^2/s
+func real AirThemDiff(real Temp){
+	return -(4.7138047e-13)*(Temp^3)+(6.617417e-10)*(Temp^2)-(9.4213142e-8)*Temp+(9.6356601e-6);
+}
+
+// Kinematic viscosity in m^2/s
+func real AirKineVisco(real Temp){
+	return -(1.1447811e-12)*(Temp^3)+(1.1357821e-9)*(Temp^2)-(2.5183443e-7)*Temp+(2.479905e-5);
+}
+
+// Prandtl number
+func real AirPrandtl(real Temp){
+	return -(2.331002e-10)*(Temp^4)+(2.87475e-7)*(Temp^3)-0.000132727*(Temp^2)+0.026919479*Temp-1.275047426;
+}
+
+
+// ===== Declare variables =====
+// Temperatures are in Kelvin
+// Declare necessary variables
+int nn;					// counter
+real TempCover;			// Cover temperature
+real TempCoverPrv;		// Previous iteration over temperature
+real TempAvg;			// Average temperatures between plate and cover
+real Ut=5.0;			// Top heat loss coefficient
+real eT;				// Temperature difference
+real Pra;				// Air Prandlt number
+real nua;				// Air kinematic viscosity
+real ka;				// Air thermal conductivity
+real Ra;				// Rayleigh number
+real ParA;				// A criteria parameter
+real Nupp;				// Parallel plate Nusselt number
+
+real hrpc;				// HT coefficient for radiation between plate and cover
+real hrca;				// HT coefficient for radiation between cover and ambient
+real hcpc;				// HT coefficient for convection between plate and cover
+
+
+// ===== Top heat loss function =====
+func real TopHeatLoss(real TempAmb, real TempSky, real TempPlate, real CoefWind, real PlateIncl){
+
+	// Initial guess of cover temperature
+	TempCover = 0.5*(TempAmb + TempPlate);
+
+	// Main loop
+	for(nn=0; nn<10; nn++){
+		// Update previous temperature value
+		TempCoverPrv = TempCover;
+
+		// Calculate plate-cover average temperature
+		TempAvg = 0.5*(TempPlate + TempCover);
+
+		// Based on previous temperature, estimate a few air properties
+		Pra = AirPrandtl(TempAvg);
+		nua = AirKineVisco(TempAvg);
+		ka = AirThermConduc(TempAvg);
+
+		// Get Rayleigh number
+		Ra = g*abs(TempPlate - TempCover)*(Lgc^3.)*Pra/(TempAvg*square(nua));
+
+		// Estimate a paremeter
+		ParA = Ra*cos(PlateIncl);
+
+		// Get Nusselt number for parallel plates
+		if(ParA > 5830.0){
+			Nupp = 1.44*(1-1708*((sin(1.8*PlateIncl))^(1.6))/ParA)*(1-1708./ParA)+((ParA/5830)^(1./3));
+		}
+		else{
+			if(ParA > 1708.0){
+				Nupp = 1.+1.44*(1-1708*((sin(1.8*PlateIncl))^(1.6))/ParA)*(1.-1708/ParA);
+			}
+			else{
+				Nupp = 1.0;
+			}
+		}
+
+		// And from that, estimate convection coefficient
+		hcpc = Nupp*ka/Lgc;
+
+		// Calculate radiation HT coefficients
+		hrpc = sgm*(TempPlate+TempCover)*(square(TempPlate)+square(TempCover))/((1./eP)+(1./eC)-1);
+		hrca = sgm*eC*(TempCover+TempSky)*(square(TempCover)+square(TempSky));
+
+		// Top heat loss coefficient
+		Ut = 1./((1./(hcpc + hrpc))+(1./(CoefWind + hrca)));
+
+		// New cover temperature
+		TempCover = TempPlate - Ut*(TempPlate - TempAmb)/(hcpc + hrpc);
+
+		eT = abs(TempCover - TempCoverPrv);
+
+		if(eT <= 0.005) break;
+
+	}
+	return Ut;
+}
+
+
+// ==========================================================
+// Finite element function definitions
+// ==========================================================
+
+// ===== Dispersion effect as a thermal conductivity =====
+// --- Calmada and Mahajan (2000) model---
+Vh kdisX = 0.06*rhof*cpf*u*sqrt(fK);
+Vh kdisY = 0.00444*kdisX; 						// Based on Celik et al (2018) long-transv ratio of thermal dispersion
+
+// ===== Interfacial heat transfer coefficient =====
+// --- Pore diameter Reynolds number ---
+Vh sqrtRep = sqrtu*sqrt(dp/nu); 
+
+// --- Interfacial Nusselt number ---
+Vh Nuv = 0.94*asf*((dp^(1.5))/(fdf^(0.5)))*((kstgf/kf)^(0.63))*sqrtRep*(Pr^0.37);
+
+// --- Interfacial HT coefficient ---
+Vh hv = (kf/square(dp))*Nuv;
+
 
 // -------------------------------------------------------------------------------- //
 //																					//
