@@ -336,10 +336,10 @@ func uy = 6*y - 6*(y^2);
 varf CompressibleX(ua, uT)
     = int2d(Th)(
         ua*uT/dt 
-        + dx(ua)*dx(uT) + dy(ua)*dy(uT)
+        + square(xiL)*dx(ua)*dx(uT) + dy(ua)*dy(uT)
     )
     + int2d(Th)(
-        (uT/dt)*convect([ReH*uphi,ReH*xiL*vphi], -dt, uold)
+        (uT/dt)*convect([ReH*xiL*uphi,ReH*xiL*vphi], -dt, uold)
     )
     + on(Inlet, ua = uy) // Inlet function for x-velocity along the y-axis
     + on(TopWall, BottomWall, ua = 0) // No-slip condition on walls
@@ -348,11 +348,11 @@ varf CompressibleX(ua, uT)
 // In the y-direction
 varf CompressibleY(va, vT)
     = int2d(Th)(
-        xiL*va*vT/dt 
-        + xiL*dx(va)*dx(vT) + xiL*dy(va)*dy(vT)
+        va*vT/dt 
+        + square(xiL)*dx(va)*dx(vT) + dy(va)*dy(vT)
     )
     + int2d(Th)(
-        (xiL*vT/dt)*convect([ReH*uphi,ReH*xiL*vphi], -dt, vold)
+        (vT/dt)*convect([ReH*xiL*uphi,ReH*xiL*vphi], -dt, vold)
     )
     + on(Inlet, TopWall, BottomWall, va = 0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
 ;
@@ -365,13 +365,12 @@ varf CompressibleY(va, vT)
 // Outlet to the ambient, with atmosferic pressure of zero
 varf Pressure(p, q)
 	= int2d(Th)(
-		(square(xip)*phi/xiL)*(
-            dx(p)*dx(q)	+ dy(p)*dy(q))
+		square(xip)*dx(p)*dx(q) + square(xip/xiL)*dy(p)*dy(q)
 	)
 	+ int2d(Th)(
 		q*(
             dx(uaa)+ dy(vaa)
-		    + (square(xip)/xiL)*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
+		    + square(xip)*dx(phi)*dx(pold) + square(xip/xiL)*dy(phi)*dy(pold)
 		)
 	)
 	+ on(Outlet, p=0)
@@ -390,7 +389,7 @@ varf CorrectionX(u, uW)
     - int2d(Th)(
         uW*(
             uaa
-            + (square(xip)*phi/xiL)*dx(p)
+            + square(xip)*phi*dx(p)
         )
     )
     + on(Inlet, u=uy)
@@ -400,12 +399,12 @@ varf CorrectionX(u, uW)
 // In the y-direction
 varf CorrectionY(v, vW)
     = int2d(Th)(
-        xiL*v*vW/dt
+        v*vW/dt
     )
     - int2d(Th)(
         vW*(
             vaa
-            + (square(xip)*phi/xiL)*dy(p)
+            + square(xip/xiL)*phi*dy(p)
         )
     )
     + on(Inlet, TopWall, BottomWall, v=0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
@@ -506,8 +505,8 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*ua+dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
-    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*xiL*va+xiL*dx(phi)*dx(vphi)+xiL*dy(phi)*dy(vphi);
+    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*xiL*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*ua+square(xiL)*dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
+    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*xiL*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*va+square(xiL)*dx(phi)*dx(vphi)+dy(phi)*dy(vphi);
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
