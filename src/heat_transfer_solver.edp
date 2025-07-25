@@ -505,6 +505,36 @@ Vh hv = (kf/square(dp))*Nuv;
 //																					//
 // -------------------------------------------------------------------------------- //
 
+real qa, Ta, Tp;
+
+varf EnergyFluid (Of, wf)
+	=int2d(Th)(
+		  (fphi*rhof*cpf/dt)*Of*wf
+		+ (kstgf+kdisX)*dx(Of)*dx(wf)
+		+ (kstgf+kdisY)*dy(Of)*dy(wf)
+	)
+	+ int2d(Th)(
+		wf*((fphi*rhof*cpf/dt)*convect([uphi, xiL*vphi],-dt,Ofold)+hv*(Osold-Ofold))
+	)
+	+ int1d(Th,TopWall)(
+		wf*fphi*(qa-Ut*(Tp-Ta))
+	)
+	+on(Inlet, Of=T0)
+;
+
+varf EnergySolid (Os, ws)
+	=int2d(Th)(
+		  ((1-fphi)*rhos*cps/dt)*Os*ws
+		+ kstgs*( dx(Os)*dx(ws) + dy(Os)*dy(ws) )
+	)
+	+ int2d(Th)(
+		ws*(((1-fphi)*rhos*cps/dt)*Osold + hv*(Ofold-Osold))
+	)
+	+ int1d(Th,TopWall)(
+		ws*(1.-fphi)*(qa-Ut*(Tp-Ta))
+	)
+;
+
 
 // -------------------------------------------------------------------------------- //
 //																					//
