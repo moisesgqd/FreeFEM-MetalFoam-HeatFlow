@@ -85,6 +85,9 @@ real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
 real alphas = ks / (rhos * cps); // thermal diffusivity of solid
 real Pr = cpf * mu / kf; // Prandtl number
 
+real alphaP = alphaf/alphas;
+real kP = kf/ks; // ratio of thermal conductivities
+
 // ==========================================================
 // Get weather data
 // ==========================================================
@@ -131,8 +134,11 @@ real Vflow = properties["Vflow"];
 real Ac = H * W; // cross-sectional area of channel
 real u0 = Vflow / Ac; // average flow velocity
 real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
+real PeH = u0 * H / alphaf; // Peclet number based on channel height
 
 real xiL = H/L; // channel aspect ratio, non-dimensional
+
+real dTc = 1361*H/ks; // characteristic temperature difference based on solar constant: 1361 W/m^2
 
 // ==================================================================================
 // Metal foam properties          NOTE: MOST OF THIS SUBSECTION IS MANUALLY MODIFIED
@@ -507,31 +513,46 @@ Vh hv = (kf/square(dp))*Nuv;
 
 real qa, Ta, Tp;
 
+Vh mx = (kstgf+kdisX)/kf;
+Vh my = (kstgf+kdisY)/kf;
+Vh ms = kstgs/ks;
+
 varf EnergyFluid (Of, wf)
 	=int2d(Th)(
-		  (fphi*rhof*cpf/dt)*Of*wf
-		+ (kstgf+kdisX)*dx(Of)*dx(wf)
-		+ (kstgf+kdisY)*dy(Of)*dy(wf)
+		  (fphi/(alphaP*dt))*Of*wf
+		+ square(xiL)*mx*dx(Of)*dx(wf)
+		+ my*dy(Of)*dy(wf)
 	)
 	+ int2d(Th)(
-		wf*((fphi*rhof*cpf/dt)*convect([uphi, xiL*vphi],-dt,Ofold)+hv*(Osold-Ofold))
+		wf*(
+			(fphi/(alphaP*dt))*convect([xiL*PeH*alphaP*uphi, xiL*PeH*alphaP*vphi],-dt,Ofold)
+			+ square(xiL)*dx(mx)*dx(Ofold)
+			+ dy(my)*dy(Ofold)
+			+ square(xip)*Nuv*(Osold-Ofold)
+		)
 	)
 	+ int1d(Th,TopWall)(
-		wf*fphi*(qa-Ut*(Tp-Ta))
+		wf*H*fphi*(qa-Ut*(Tp-Ta))/(dTc*kf)
 	)
 	+on(Inlet, Of=T0)
 ;
 
 varf EnergySolid (Os, ws)
 	=int2d(Th)(
-		  ((1-fphi)*rhos*cps/dt)*Os*ws
-		+ kstgs*( dx(Os)*dx(ws) + dy(Os)*dy(ws) )
+		  ((1-fphi)/dt)*Os*ws
+		+ square(xiL)*ms*dx(Os)*dx(ws)
+		+ ms*dy(Os)*dy(ws)
 	)
 	+ int2d(Th)(
-		ws*(((1-fphi)*rhos*cps/dt)*Osold + hv*(Ofold-Osold))
+		ws*(
+			((1-fphi)/dt)*Osold
+			+ square(xiL)*dx(ms)*dx(Osold)
+			+ dy(ms)*dy(Osold)
+			+ Nuv*kP*square(xiL)*(Ofold-Osold)
+		)
 	)
 	+ int1d(Th,TopWall)(
-		ws*(1.-fphi)*(qa-Ut*(Tp-Ta))
+		ws*(1.-fphi)*(qa-Ut*(Tp-Ta))*H/(dTc*ks)
 	)
 ;
 
