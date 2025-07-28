@@ -28,7 +28,7 @@ load "iovtk"
 // For sanity check
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true; // Set to true to plot the mesh
-bool bPlotData = false; // Set to true to plot the data
+bool bPlotData = true; // Set to true to plot the data
 bool bExportData = true; // Set to true to export data in dat format
 
 // ===== Absolute and relative paths =====
@@ -222,7 +222,7 @@ real maxError = 1e-6; // Maximum error tolerance for convergence
 
 // ===== Time control variables ======
 int maxIter = 1e6; // Maximum number of iterations for the time loop
-real dt = 0.0000001; // Time step size, either in seconds or in a non-dimensional form
+real dt = 0.001; // Time step size, either in seconds or in a non-dimensional form
 
 
 // -------------------------------------------------------------------------------- //
@@ -301,7 +301,7 @@ fespace Vh(Th, P2); // P2 elements
 Vh u, v, sqrtu, sqrtv, uaux, vaux, uphi, vphi;
 
 // --- Temperature fields ---
-Vh Of=T0, Os=T0;
+Vh Of=0, Os=0;
 
 // --- Previous iteration fields ---
 Vh Ofold, Osold, Ofaux, Osaux;
@@ -311,6 +311,9 @@ Vh wf, ws;
 
 // --- Porosity as a finite element space ---
 Vh phi=fphi;
+
+// --- Solution spaces ---
+Vh solEnerF, solEnerS;
 
 // Check if the provided porosity is physically correct or not
 if(bPlotMesh){
@@ -336,7 +339,7 @@ if(bPlotMesh){
 }
 
 u[] = uaux[];
-uphi = u/fphi;
+uphi = u/phi;
 
 {
     ifstream fileV(home + "results/Velocity_Y/velocity_V_4000.txt");
@@ -344,7 +347,7 @@ uphi = u/fphi;
 }
 
 v[] = vaux[];
-vphi = v/fphi;
+vphi = v/phi;
 
 sqrtu = sqrt(u); // Calculate the square root of the velocity field U
 
@@ -363,7 +366,7 @@ sqrtu[] = sqrtu[];
 sqrtv[] = sqrtv[];
 
 plot(u, wait = true, cmm = "Velocity field U", fill = true, value = true);
-plot(sqrtu, wait = false, cmm = "Sqrt Velocity field U", fill = true, value = true);
+plot(sqrtu, wait = true, cmm = "Sqrt Velocity field U", fill = true, value = true);
 
 // ==========================================================
 // Calculate top heat loss coefficient
@@ -497,13 +500,15 @@ Vh kdisY = 0.00444*kdisX; 						// Based on Celik et al (2018) long-transv ratio
 // ===== Interfacial heat transfer coefficient =====
 // --- Pore diameter Reynolds number ---
 Vh sqrtRep = sqrtu*sqrt(dp/nu); 
+plot(sqrtRep, wait = true, cmm = "Square root pore Reynolds number", fill = true, value = true);
 
 // --- Interfacial Nusselt number ---
-Vh Nuv = 0.94*asf*((dp^(1.5))/(fdf^(0.5)))*((kstgf/kf)^(0.63))*sqrtRep*(Pr^0.37);
+Vh Nuv = 0.94*asf*((dp^(1.5))/(fdf^(0.5)))*(((2+phi)/3)^(0.63))*sqrtRep*(Pr^0.37);
 
 // --- Interfacial HT coefficient ---
 Vh hv = (kf/square(dp))*Nuv;
 
+plot(Nuv, wait = true, cmm = "Interfacial Nusselt number", fill = true, value = true);
 
 // -------------------------------------------------------------------------------- //
 //																					//
@@ -511,15 +516,15 @@ Vh hv = (kf/square(dp))*Nuv;
 //																					//
 // -------------------------------------------------------------------------------- //
 
-real qa, Ta, Tp;
+real qa, Ta, Tp, Ts, hw;
 
-Vh mx = (kstgf+kdisX)/kf;
-Vh my = (kstgf+kdisY)/kf;
-Vh ms = kstgs/ks;
+Vh mx = ((2+phi)/3)+kdisX/kf;
+Vh my = ((2+phi)/3)+kdisY/kf;
+Vh ms = (1-phi)/3;
 
 varf EnergyFluid (Of, wf)
 	=int2d(Th)(
-		  (fphi/(alphaP*dt))*Of*wf
+		(fphi/(alphaP*dt))*Of*wf
 		+ square(xiL)*mx*dx(Of)*dx(wf)
 		+ my*dy(Of)*dy(wf)
 	)
@@ -534,7 +539,7 @@ varf EnergyFluid (Of, wf)
 	+ int1d(Th,TopWall)(
 		wf*H*fphi*(qa-Ut*(Tp-Ta))/(dTc*kf)
 	)
-	+on(Inlet, Of=T0)
+	+on(Inlet, Of=0)
 ;
 
 varf EnergySolid (Os, ws)
@@ -567,13 +572,15 @@ varf EnergySolid (Os, ws)
 // Define stiffness matrices
 // ==========================================================
 
-
+matrix AEnerF;			// Matrix for the energy problem for the fluid
+matrix AEnerS;			// Matrix for the energy problem for the solid
 
 // ==========================================================
 // Define right hand side vectors
 // ==========================================================
 
-
+real[int] bEnerF(Vh.ndof);			// Vector for the energy problem for the fluid
+real[int] bEnerS(Vh.ndof);			// Vector for the energy problem for the solid
 
 // ==========================================================
 // Construct the linear system
@@ -581,9 +588,13 @@ varf EnergySolid (Os, ws)
 
 // ===== Assemble the stiffness matrices =====
 
+AEnerF = EnergyFluid(Vh,Vh);
+AEnerS = EnergySolid(Vh,Vh);
 
 // ===== Assemble the right hand side vectors =====
 
+bEnerF = EnergyFluid(0,Vh);
+bEnerS = EnergySolid(0,Vh);
 
 // -------------------------------------------------------------------------------- //
 //																					//
@@ -591,16 +602,49 @@ varf EnergySolid (Os, ws)
 //																					//
 // -------------------------------------------------------------------------------- //
 
+// ==========================================================
+// Get weather data
+// ==========================================================
+
+qa = qabs[12]; // Absorbed solar radiation in W/m^2
+Ta = Tamb[12]; // Ambient temperature in Kelvin
+Ts = Tsky[12]; // Sky temperature in Kelvin
+hw = hwind[12]; // Wind speed in m/s
+
+real errf;
+
 // ===== Initialize the time loop =====
 // cout << "Starting time loop with maximum iterations: " << maxIter << endl;
 
-// for(int n=0; n < maxIter; n++){
-
+for(int n=0; n < maxIter; n++){	
+	cout << "Iteration: " << n << endl;
     // ==========================================================
     // Update main variables
     // ==========================================================
     
+	Ofold = Of;
+	Osold = Os;
 
+	// ===== Get plate temperature =====
+	Tp = (1/L)*int1d(Th,TopWall)(fphi*Of+(1-fphi)*Os)*dTc+273.15;
+
+	cout << "Plate temperature: " << Tp << " K" << endl;
+
+	// ===== Calculate top heat loss coefficient =====
+	Ut = TopHeatLoss(Ta, Ts, Tp, hw, beta);
+
+	cout << "Top heat loss coefficient: " << Ut << " W/(m^2-K)" << endl;
+
+	// ===== Reconstruct RHS vectors =====
+	bEnerF = EnergyFluid(0,Vh);
+	bEnerS = EnergySolid(0,Vh);
+	
+	// ===== Solve coupled energy problem =====
+	solEnerF[] = AEnerF^-1 * bEnerF;
+	solEnerS[] = AEnerS^-1 * bEnerS;
+
+	Of = solEnerF;
+	Os = solEnerS;
 
     // ==========================================================
     // Error and outputs
@@ -610,11 +654,18 @@ varf EnergySolid (Os, ws)
 
     
     // ===== Plot data to verify    
+	if ( n%10 == 0 && bPlotData) {
+		plot(Of, wait = false, cmm = "Fluid Temperature", fill = true, value = true);
 
+		errf = sqrt(int2d(Th)(square(Of-Ofold))/Th.area);
+		cout << "Error in fluid temperature: " << errf << endl;
+
+		// plot(Os, wait = false, cmm = "Solid Temperature", fill = true, value = true);
+	}
 
     // ===== Export data if conditions are met =====
 
 
     // ===== Apply stoping criteria =====
 
-// }
+}
