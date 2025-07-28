@@ -39,9 +39,6 @@
 results/
 data/
 
-# Data files
-*data.txt
-
 # Meshes
 *.msh
 
