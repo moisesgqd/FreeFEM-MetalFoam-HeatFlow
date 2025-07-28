@@ -28,8 +28,8 @@ load "iovtk"
 // For sanity check
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true; // Set to true to plot the mesh
-bool bPlotData = true; // Set to true to plot the data
-bool bExportData = true; // Set to true to export data in dat format
+bool bPlotData = false; // Set to true to plot the data
+bool bExportData = false; // Set to true to export data in dat format
 
 // ===== Absolute and relative paths =====
 // To read and save data files
@@ -334,7 +334,7 @@ if(bPlotMesh){
 // ==========================================================
 
 {
-    ifstream fileU(home + "results/Velocity_X/velocity_U_4000.txt");
+    ifstream fileU(home + "results/Velocity_X/velocity_U_400.txt");
     fileU >> uaux[];
 }
 
@@ -342,24 +342,39 @@ u[] = uaux[];
 uphi = u/phi;
 
 {
-    ifstream fileV(home + "results/Velocity_Y/velocity_V_4000.txt");
+    ifstream fileV(home + "results/Velocity_Y/velocity_V_400.txt");
     fileV >> vaux[];
 }
 
 v[] = vaux[];
 vphi = v/phi;
 
-sqrtu = sqrt(u); // Calculate the square root of the velocity field U
 
+// ===== Generate square root velocity fields =====
+// sqrtu = sqrt(u); // Calculate the square root of the velocity field U
+// sqrtv = sqrt(v); // Calculate the square root of the velocity field V
+
+// {
+//     ofstream fileSqrtU(home + "results/Velocity_X/sqrt_velocity_U_400.txt");
+//     fileSqrtU << sqrtu[] << endl;
+// }
+
+// {
+//     ofstream fileSqrtV(home + "results/Velocity_Y/sqrt_velocity_V_400.txt");
+//     fileSqrtV << sqrtv[] << endl;
+// }
+
+
+// ===== Read square root velocity fields from files =====
 {
-    ifstream fileSqrtU(home + "results/Velocity_X/sqrt_velocity_U_4000.txt");
+    ifstream fileSqrtU(home + "results/Velocity_X/sqrt_velocity_U_400.txt");
     fileSqrtU >> sqrtu[];
 }
 
 sqrtu[] = sqrtu[];
 
 {
-    ifstream fileSqrtV(home + "results/Velocity_Y/sqrt_velocity_V_4000.txt");
+    ifstream fileSqrtV(home + "results/Velocity_Y/sqrt_velocity_V_400.txt");
     fileSqrtV >> sqrtv[];
 }
 

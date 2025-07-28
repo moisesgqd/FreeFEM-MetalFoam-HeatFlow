@@ -29,7 +29,7 @@ load "iovtk"
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
-bool bExportData = true; // Set to true to export data in dat format
+bool bExportData = false; // Set to true to export data in dat format
 
 // ===== Absolute and relative paths =====
 // To read and save data files
@@ -147,8 +147,8 @@ real phit = 0.97;   // porosity on top wall
 // Declare if porosity is constant or varies within the domain to print in logs file
 bool isPorosityConstant = true; // Set to true if porosity is constant, false if it varies within the domain
 
-// func fphi = phib + (phit - phib)*square(y)/square(H);
-func fphi = phib + (phit - phib)*square(y);
+func fphi = phib + (phit - phib)*square(y)/square(H);
+// func fphi = phib + (phit - phib)*square(y);
 
 // ===== Pore size =====
 // --- Constant pore size ---
@@ -287,7 +287,7 @@ Vh u=0, v=0, p=0;
 Vh uT, vT, q, uW, vW;
 
 // --- Auxiliary variables ---
-Vh ua, uaa, va, vaa;
+Vh ua, uaa, va, vaa, uaux;
 
 // --- Intrinsic velocity field ---
 Vh uphi=u/fphi, vphi=v/fphi;
@@ -315,6 +315,16 @@ if(bPlotMesh){
         cout << "Porosity field is correct." << endl;
     }
 }
+
+// {
+//     ifstream fileU(home + "results/Velocity_X/velocity_U_400.txt");
+//     fileU >> uaux[];
+// }
+
+// u[] = uaux[];
+
+// plot(u, wait = true, cmm = "X-velocity field at the beginning", value = true, fill=true); // Plot the initial x-velocity field
+// exit(1);
 
 // -------------------------------------------------------------------------------- //
 //																					//
@@ -544,7 +554,7 @@ for(int n=0; n < maxIter; n++){
     cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << " . Average inlet U = " << avgUin << " and oulet = " << avgUout << endl;
 
     
-    if(n%10 == 0){
+    if(n%20 == 0){
         // ===== Plot data to verify    
         plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
 
