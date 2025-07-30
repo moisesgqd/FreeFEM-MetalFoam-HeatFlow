@@ -24,13 +24,6 @@ load "iovtk"
 // Debugging Options
 // ==========================================================
 
-// ===== Enable debugging options ======
-// For sanity check
-verbosity = false; // Set to true to enable detailed output
-bool bPlotMesh = true; // Set to true to plot the mesh
-bool bPlotData = false; // Set to true to plot the data
-bool bExportData = false; // Set to true to export data in dat format
-
 // ===== Absolute and relative paths =====
 // To read and save data files
 string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
@@ -38,6 +31,23 @@ string physicalFile = home + "data/physical_parameters.txt"; // file containing 
 string weatherFile = home + "data/weather_data.txt"; // file containing weather data
 string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
 string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
+string simOptionsFile = home + "data/simulation_options.txt"; // file containing simulation options
+
+// ===== Enable debugging options ======
+// For sanity check
+verbosity = false; // Set to true to enable detailed output
+int bPlotMesh; // Set to true to plot the mesh
+int bPlotData; // Set to true to plot the data
+int bExportData; // Set to true to export data
+
+string blank;
+
+{
+    ifstream simOptions(simOptionsFile);
+    simOptions >> blank >> bPlotMesh;
+    simOptions >> blank >> bPlotData;
+    simOptions >> blank >> bExportData;
+}
 
 // -------------------------------------------------------------------------------- //
 //																					//
@@ -50,7 +60,7 @@ string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
 // ==========================================================
 
 // ===== Define variables to store values ====== 
-string property, blank;
+string property;
 real value;
 real[string] properties;
 
@@ -84,24 +94,6 @@ real nu = mu / rhof; // kinematic viscosity
 real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
 real alphas = ks / (rhos * cps); // thermal diffusivity of solid
 real Pr = cpf * mu / kf; // Prandtl number
-
-// ==========================================================
-// Get weather data
-// ==========================================================
-
-// ===== Define variables to store weather data ======
-// int n=27; // size of the arrays
-// string[int] hour(n);
-// real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
-
-// // ===== Read weather data from file ======
-// {
-//     ifstream WeatherData(weatherFile);
-//     WeatherData >> blank; // ignore first line (header)
-//     for(int i=0; i<n; i++){
-//         WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
-//     }
-// } // File will close automatically after this block
 
 // ==========================================================
 // Read channel characteristics
@@ -548,7 +540,7 @@ for(int n=0; n < maxIter; n++){
     // Stoping condition
     if(n%10 == 0){
         // ===== Plot data to verify    
-        plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
+        if(bPlotData) plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
 
         // ===== Export data if conditions are met =====
         if(n%100 == 0 && bExportData){
