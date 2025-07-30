@@ -29,7 +29,7 @@ load "iovtk"
 verbosity = false; // Set to true to enable detailed output
 bool bPlotMesh = true; // Set to true to plot the mesh
 bool bPlotData = false; // Set to true to plot the data
-bool bExportData = true; // Set to true to export data in dat format
+bool bExportData = false; // Set to true to export data in dat format
 
 // ===== Absolute and relative paths =====
 // To read and save data files
@@ -144,11 +144,8 @@ real phic = 0.9; 	// porosity on center
 real phit = 0.97;   // porosity on top wall
 
 // --- Proposed porosity scalar field ---
-// Declare if porosity is constant or varies within the domain to print in logs file
-bool isPorosityConstant = true; // Set to true if porosity is constant, false if it varies within the domain
-
 // func fphi = phib + (phit - phib)*square(y)/square(H);
-func fphi = phib + (phit - phib)*square(y);
+func fphi = phib + (phit - phib)*square(y)/square(H); // in m/m
 
 // ===== Pore size =====
 // --- Constant pore size ---
@@ -202,11 +199,12 @@ real avgUin, avgUout; // Average velocities at the inlet and outlet
 
 // ===== Time control variables ======
 int maxIter = 1e6; // Maximum number of iterations for the time loop
-real dt = 0.0000001; // Time step size, either in seconds or in a non-dimensional form
+real dt = 0.00001; // Time step size, either in seconds or in a non-dimensional form
 
 // ===== Identifiers =====
 string UFile, VFile, PFile; // Output files for velocity and pressure
 string Udir, Vdir, Pdir; // Directories to save the data files
+
 // -------------------------------------------------------------------------------- //
 //																					//
 // 	      M E S H   H A N D L I N G   A N D   F E M   S P A C E   S E T U P         //
@@ -287,7 +285,7 @@ Vh u=0, v=0, p=0;
 Vh uT, vT, q, uW, vW;
 
 // --- Auxiliary variables ---
-Vh ua, uaa, va, vaa;
+Vh ua, uaa, va, vaa, uaux;
 
 // --- Intrinsic velocity field ---
 Vh uphi=u/fphi, vphi=v/fphi;
@@ -325,7 +323,7 @@ if(bPlotMesh){
 // ===== Boundary conditions =====
 // Inlet velocity function
 // This function defines the velocity at the inlet of the duct
-func uy = 6*y - 6*(y^2);
+// func uy = 6*y - 6*(y^2);
 
 // ==========================================================
 // Compressible modified Navier-Stokes equations
@@ -334,27 +332,35 @@ func uy = 6*y - 6*(y^2);
 // ===== Solve compressible part of modifies Navier-Stokes equations =====
 // In the x-direction
 varf CompressibleX(ua, uT)
-    = int2d(Th)(
-        ua*uT/dt 
-        + square(xiL)*dx(ua)*dx(uT) + dy(ua)*dy(uT)
-    )
-    + int2d(Th)(
-        (uT/dt)*convect([ReH*xiL*uphi,ReH*xiL*vphi], -dt, uold)
-    )
-    + on(Inlet, ua = uy) // Inlet function for x-velocity along the y-axis
-    + on(TopWall, BottomWall, ua = 0) // No-slip condition on walls
+	= int2d(Th)(
+		  (1./dt)*ua*uT
+		+ (nu)*(
+			  (dx(ua)*dx(uT) + dy(ua)*dy(uT))
+			)
+	)
+	+ int2d(Th)(
+		  (1./dt)*(
+			  uT*convect([uphi, vphi], -dt, uold)
+		)
+	)
+	+ on(Inlet, ua=240*u0*y*(1-40*y)) 
+	+ on(TopWall, BottomWall, ua=0)
 ;
 
 // In the y-direction
 varf CompressibleY(va, vT)
-    = int2d(Th)(
-        va*vT/dt 
-        + square(xiL)*dx(va)*dx(vT) + dy(va)*dy(vT)
-    )
-    + int2d(Th)(
-        (vT/dt)*convect([ReH*xiL*uphi,ReH*xiL*vphi], -dt, vold)
-    )
-    + on(Inlet, TopWall, BottomWall, va = 0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
+	= int2d(Th)(
+		  (1./dt)*va*vT
+		+ (nu)*(
+			(dx(va)*dx(vT) + dy(va)*dy(vT))
+			)
+	)
+	+ int2d(Th)(
+		  (1./dt)*(
+			vT*convect([uphi, vphi], -dt, vold)
+		)
+	)
+	+ on(Inlet, TopWall, BottomWall, va=0)
 ;
 
 // ==========================================================
@@ -365,12 +371,12 @@ varf CompressibleY(va, vT)
 // Outlet to the ambient, with atmosferic pressure of zero
 varf Pressure(p, q)
 	= int2d(Th)(
-		square(xip)*dx(p)*dx(q) + square(xip/xiL)*dy(p)*dy(q)
+		(phi/rhof)*(dx(p)*dx(q)
+		+ dy(p)*dy(q))
 	)
 	+ int2d(Th)(
-		q*(
-            dx(uaa)+ dy(vaa)
-		    + square(xip)*dx(phi)*dx(pold) + square(xip/xiL)*dy(phi)*dy(pold)
+		q*(dx(uaa)+ dy(vaa)
+		+ (1/rhof)*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
 		)
 	)
 	+ on(Outlet, p=0)
@@ -383,31 +389,27 @@ varf Pressure(p, q)
 // ===== Applied pressure correction to the velocity field =====
 // In the x-direction
 varf CorrectionX(u, uW)
-    = int2d(Th)(
-        u*uW/dt
-    )
-    - int2d(Th)(
-        uW*(
-            uaa
-            + square(xip)*phi*dx(p)
-        )
-    )
-    + on(Inlet, u=uy)
-    + on(TopWall, BottomWall, u=0) // No-slip condition on walls
+	= int2d(Th)(
+		(1./dt)*u*uW
+	)
+	+ int2d(Th)(
+		uW*((-1.)*uaa
+		-(phi/rhof)*dx(p))
+	)
+	+ on(Inlet, u=240*u0*y*(1-40*y))
+	+ on(BottomWall, TopWall, u=0)
 ;
 
 // In the y-direction
 varf CorrectionY(v, vW)
-    = int2d(Th)(
-        v*vW/dt
-    )
-    - int2d(Th)(
-        vW*(
-            vaa
-            + square(xip/xiL)*phi*dy(p)
-        )
-    )
-    + on(Inlet, TopWall, BottomWall, v=0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
+	= int2d(Th)(
+		(1./dt)*v*vW
+	)
+	+ int2d(Th)(
+		vW*((-1.)*vaa
+		-(phi/rhof)*dy(p))
+	)
+	+ on(Inlet, BottomWall, TopWall, v=0)
 ;
 
 // -------------------------------------------------------------------------------- //
@@ -470,7 +472,7 @@ for(int n=0; n < maxIter; n++){
     // ==========================================================
     // Update main variables
     // ==========================================================
-    
+
     pold = p; // Store the old pressure field
     uold = u; // Store the old x-velocity field
     vold = v; // Store the old y-velocity field
@@ -505,12 +507,12 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*xiL*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*ua+square(xiL)*dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
-    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*xiL*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*va+square(xiL)*dx(phi)*dx(vphi)+dy(phi)*dy(vphi);
+    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*sqrt(ua^2+va^2)-(1./dt)-(ua/(square(phi)))*dx(phi)-(va/(square(phi)))*dy(phi))*ua+(nu)*(dx(phi)*dx(uphi)+dy(phi)*dy(uphi));
+    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*sqrt(ua^2+va^2)-(1./dt)-(ua/(square(phi)))*dx(phi)-(va/(square(phi)))*dy(phi))*va+(nu)*(dx(phi)*dx(vphi)+dy(phi)*dy(vphi));
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
-    
+
     // ===== Solve =====
     solPres[] = Apres^-1 * bpres;
     p = solPres;	 // Update pressure field
@@ -538,12 +540,12 @@ for(int n=0; n < maxIter; n++){
     // ===== Calculate error and outflux =====
     error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
     outflux = int1d(Th)(u*N.x + v*N.y);
-    avgUin = int1d(Th, Inlet)(u);
-    avgUout = int1d(Th, Outlet)(u);
+    avgUin = (1./H)*int1d(Th,Inlet)(u);
+    avgUout = (1./H)*int1d(Th,Outlet)(u);
 
     cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << " . Average inlet U = " << avgUin << " and oulet = " << avgUout << endl;
 
-    
+    // Stoping condition
     if(n%10 == 0){
         // ===== Plot data to verify    
         plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
@@ -565,7 +567,7 @@ for(int n=0; n < maxIter; n++){
             ofstream UFile(Udir);
             UFile << u[] << endl;
             
-            // Exiort velocity on y direction
+            // Export velocity on y direction
             ofstream VFile(Vdir);
             VFile << v[] << endl;
 
