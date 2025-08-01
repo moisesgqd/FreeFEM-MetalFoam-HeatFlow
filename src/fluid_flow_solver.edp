@@ -123,6 +123,29 @@ real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
 
 real xiL = H/L; // channel aspect ratio, non-dimensional
 
+// ==========================================================
+// Read mesh data
+// ==========================================================
+
+// ===== Define variables to store mesh data ======
+int nx, ny;
+string distX, distY; 
+string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+
+// ===== Declare mesh as a global variable =====
+// This allows the mesh to be accessed throughout the script without needing to pass it as a parameter
+mesh Th;
+
+// ===== Read each line of the file to save its content =====
+{
+    ifstream meshData(meshDataFile);
+    meshData >> blank >> nx;
+    meshData >> blank >> ny;
+    meshData >> blank >> distX;
+    meshData >> blank >> distY;
+    meshData >> blank >> dim;
+} // File will close automatically after this block
+
 // ==================================================================================
 // Metal foam properties          NOTE: MOST OF THIS SUBSECTION IS MANUALLY MODIFIED
 // ==================================================================================
@@ -136,8 +159,10 @@ real phic = 0.9; 	// porosity on center
 real phit = 0.97;   // porosity on top wall
 
 // --- Proposed porosity scalar field ---
-// func fphi = phib + (phit - phib)*square(y)/square(H);
-func fphi = phib + (phit - phib)*square(y)/square(H); // in m/m
+// Create porosity function based on the provided parameters
+real denom = 1.; // default value for non-dimensional case
+if(dim == "dim") denom = square(H); // if dimensional, use H^2 as the denominator
+func fphi = phib + (phit - phib)*square(y)/denom; // in m/m
 
 // ===== Pore size =====
 // --- Constant pore size ---
@@ -203,28 +228,6 @@ string Udir, Vdir, Pdir; // Directories to save the data files
 //																					//
 // -------------------------------------------------------------------------------- //
 
-// ==========================================================
-// Read mesh data
-// ==========================================================
-
-// ===== Define variables to store mesh data ======
-int nx, ny;
-string distX, distY; 
-string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
-
-// ===== Declare mesh as a global variable =====
-// This allows the mesh to be accessed throughout the script without needing to pass it as a parameter
-mesh Th;
-
-// ===== Read each line of the file to save its content =====
-{
-    ifstream meshData(meshDataFile);
-    meshData >> blank >> nx;
-    meshData >> blank >> ny;
-    meshData >> blank >> distX;
-    meshData >> blank >> distY;
-    meshData >> blank >> dim;
-} // File will close automatically after this block
 
 // ===== Generate and print out mesh name to console ======
 string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
