@@ -335,10 +335,10 @@ varf CompressibleX(ua, uT)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			  uT*convect([uphi, vphi], -dt, uold)
+			  uT*convect([u0*uphi, xiL*u0*vphi], -dt, uold)
 		)
 	)
-	+ on(Inlet, ua=240*u0*y*(1-40*y)) 
+	+ on(Inlet, ua=240*y*(1-40*y)) 
 	+ on(TopWall, BottomWall, ua=0)
 ;
 
@@ -352,7 +352,7 @@ varf CompressibleY(va, vT)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			vT*convect([uphi, vphi], -dt, vold)
+			vT*convect([u0*uphi, xiL*u0*vphi], -dt, vold)
 		)
 	)
 	+ on(Inlet, TopWall, BottomWall, va=0)
@@ -370,7 +370,7 @@ varf Pressure(p, q)
 		+ dy(p)*dy(q))
 	)
 	+ int2d(Th)(
-		q*(dx(uaa)+ dy(vaa)
+		q*(u0*dx(uaa)+ xiL*u0*dy(vaa)
 		+ (1/rhof)*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
 		)
 	)
@@ -385,23 +385,23 @@ varf Pressure(p, q)
 // In the x-direction
 varf CorrectionX(u, uW)
 	= int2d(Th)(
-		(1./dt)*u*uW
+		(u0/dt)*u*uW
 	)
 	+ int2d(Th)(
-		uW*((-1.)*uaa
+		uW*((-1.)*u0*uaa
 		-(phi/rhof)*dx(p))
 	)
-	+ on(Inlet, u=240*u0*y*(1-40*y))
+	+ on(Inlet, u=240*y*(1-40*y))
 	+ on(BottomWall, TopWall, u=0)
 ;
 
 // In the y-direction
 varf CorrectionY(v, vW)
 	= int2d(Th)(
-		(1./dt)*v*vW
+		(xiL*u0/dt)*v*vW
 	)
 	+ int2d(Th)(
-		vW*((-1.)*vaa
+		vW*((-1.)*xiL*u0*vaa
 		-(phi/rhof)*dy(p))
 	)
 	+ on(Inlet, BottomWall, TopWall, v=0)
@@ -502,8 +502,8 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*sqrt(ua^2+va^2)-(1./dt)-(ua/(square(phi)))*dx(phi)-(va/(square(phi)))*dy(phi))*ua+(nu)*(dx(phi)*dx(uphi)+dy(phi)*dy(uphi));
-    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*sqrt(ua^2+va^2)-(1./dt)-(ua/(square(phi)))*dx(phi)-(va/(square(phi)))*dy(phi))*va+(nu)*(dx(phi)*dx(vphi)+dy(phi)*dy(vphi));
+    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-xiL*u0*(va/(square(phi)))*dy(phi))*ua+nu*(dx(phi)*dx(uphi)+dy(phi)*dy(uphi));
+    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-xiL*u0*(va/(square(phi)))*dy(phi))*va+nu*(dx(phi)*dx(vphi)+dy(phi)*dy(vphi));
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
@@ -543,7 +543,10 @@ for(int n=0; n < maxIter; n++){
     // Stoping condition
     if(n%10 == 0){
         // ===== Plot data to verify    
-        if(bPlotData) plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
+        if(bPlotData){
+            plot(u, wait = true, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
+            plot(p, wait = true, cmm = "Pressure field at iteration " + n, value = true, fill=true);
+        }
 
         // ===== Export data if conditions are met =====
         if(n%100 == 0 && bExportData){
