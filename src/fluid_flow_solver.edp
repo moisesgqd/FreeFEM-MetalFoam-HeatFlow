@@ -329,12 +329,12 @@ varf CompressibleX(ua, uT)
 	= int2d(Th)(
 		  (1./dt)*ua*uT
 		+ (nu)*(
-			  (dx(ua)*dx(uT) + (1/square(H))*dy(ua)*dy(uT))
+			  ((1/square(L))*dx(ua)*dx(uT) + (1/square(H))*dy(ua)*dy(uT))
 			)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			  uT*convect([u0*uphi, (u0/L)*vphi], -dt, uold)
+			  uT*convect([(u0/L)*uphi, (u0/L)*vphi], -dt, uold)
 		)
 	)
 	+ on(Inlet, ua=6.*y*(1.-y)) 
@@ -346,12 +346,12 @@ varf CompressibleY(va, vT)
 	= int2d(Th)(
 		  (1./dt)*va*vT
 		+ (nu)*(
-			(dx(va)*dx(vT) + (1/square(H))*dy(va)*dy(vT))
+			((1/square(L))*dx(va)*dx(vT) + (1/square(H))*dy(va)*dy(vT))
 			)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			vT*convect([u0*uphi, (u0/L)*vphi], -dt, vold)
+			vT*convect([(u0/L)*uphi, (u0/L)*vphi], -dt, vold)
 		)
 	)
 	+ on(Inlet, TopWall, BottomWall, va=0)
@@ -365,12 +365,12 @@ varf CompressibleY(va, vT)
 // Outlet to the ambient, with atmosferic pressure of zero
 varf Pressure(p, q)
 	= int2d(Th)(
-		(phi*nu*u0*L/square(dp))*(dx(p)*dx(q)
+		(phi*nu*u0*L/square(dp))*((1/square(L))*dx(p)*dx(q)
 		+ (1/square(H))*dy(p)*dy(q))
 	)
 	+ int2d(Th)(
-		q*(u0*dx(uaa)+ (u0/L)*dy(vaa)
-		+ (nu*u0*L/square(dp))*(dx(phi)*dx(pold) + (1/square(H))*dy(phi)*dy(pold))
+		q*((u0/L)*dx(uaa)+ (u0/L)*dy(vaa)
+		+ (nu*u0*L/square(dp))*((1/square(L))*dx(phi)*dx(pold) + (1/square(H))*dy(phi)*dy(pold))
 		)
 	)
 	+ on(Outlet, p=0)
@@ -388,7 +388,7 @@ varf CorrectionX(u, uW)
 	)
 	+ int2d(Th)(
 		uW*((-1.)*u0*uaa
-		-(phi*nu*u0*L/square(dp))*dx(p))
+		-(phi*nu*u0/square(dp))*dx(p))
 	)
 	+ on(Inlet, u=6.*y*(1-y))
 	+ on(BottomWall, TopWall, u=0)
@@ -501,8 +501,8 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*ua+nu*(dx(phi)*dx(uphi)+(1/square(H))*dy(phi)*dy(uphi));
-    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*va+nu*(dx(phi)*dx(vphi)+(1/square(H))*dy(phi)*dy(vphi));
+    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-(u0/L)*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*ua+nu*((1/square(L))*dx(phi)*dx(uphi)+(1/square(H))*dy(phi)*dy(uphi));
+    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-(u0/L)*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*va+nu*((1/square(L))*dx(phi)*dx(vphi)+(1/square(H))*dy(phi)*dy(vphi));
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
