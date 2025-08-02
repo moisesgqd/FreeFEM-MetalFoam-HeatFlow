@@ -116,6 +116,8 @@ real beta = properties["beta"];
 real Lgc = properties["Lgc"];
 real Vflow = properties["Vflow"];
 
+H = 0.025; // Height of the channel in meters, overwritten for testing purposes
+
 // ===== Calculate derived channel characteristics ======
 real Ac = H * W; // cross-sectional area of channel
 real u0 = Vflow / Ac; // average flow velocity
@@ -228,7 +230,7 @@ string Udir, Vdir, Pdir; // Directories to save the data files
 //																					//
 // -------------------------------------------------------------------------------- //
 
-
+H = 1.0; // Height of the channel in meters, overwritten for testing purposes
 // ===== Generate and print out mesh name to console ======
 string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
 cout << "Mesh name: " << meshName << endl;
@@ -263,7 +265,7 @@ int BottomWall = 1;
 int Outlet = 2;
 int TopWall= 3;
 int Inlet = 4;
-
+H = 0.025; // Height of the channel in meters, overwritten for testing purposes
 // ==========================================================
 // Create finite element spaces
 // ==========================================================
@@ -330,15 +332,15 @@ varf CompressibleX(ua, uT)
 	= int2d(Th)(
 		  (1./dt)*ua*uT
 		+ (nu)*(
-			  (dx(ua)*dx(uT) + dy(ua)*dy(uT))
+			  (dx(ua)*dx(uT) + (1/square(H))*dy(ua)*dy(uT))
 			)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			  uT*convect([u0*uphi, xiL*u0*vphi], -dt, uold)
+			  uT*convect([u0*uphi, (u0/L)*vphi], -dt, uold)
 		)
 	)
-	+ on(Inlet, ua=240*y*(1-40*y)) 
+	+ on(Inlet, ua=6.*y*(1.-y)) 
 	+ on(TopWall, BottomWall, ua=0)
 ;
 
@@ -347,12 +349,12 @@ varf CompressibleY(va, vT)
 	= int2d(Th)(
 		  (1./dt)*va*vT
 		+ (nu)*(
-			(dx(va)*dx(vT) + dy(va)*dy(vT))
+			(dx(va)*dx(vT) + (1/square(H))*dy(va)*dy(vT))
 			)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			vT*convect([u0*uphi, xiL*u0*vphi], -dt, vold)
+			vT*convect([u0*uphi, (u0/L)*vphi], -dt, vold)
 		)
 	)
 	+ on(Inlet, TopWall, BottomWall, va=0)
@@ -367,11 +369,11 @@ varf CompressibleY(va, vT)
 varf Pressure(p, q)
 	= int2d(Th)(
 		(phi*nu*u0*L/square(dp))*(dx(p)*dx(q)
-		+ dy(p)*dy(q))
+		+ (1/square(H))*dy(p)*dy(q))
 	)
 	+ int2d(Th)(
-		q*(u0*dx(uaa)+ xiL*u0*dy(vaa)
-		+ (nu*u0*L/square(dp))*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
+		q*(u0*dx(uaa)+ (u0/L)*dy(vaa)
+		+ (nu*u0*L/square(dp))*(dx(phi)*dx(pold) + (1/square(H))*dy(phi)*dy(pold))
 		)
 	)
 	+ on(Outlet, p=0)
@@ -391,7 +393,7 @@ varf CorrectionX(u, uW)
 		uW*((-1.)*u0*uaa
 		-(phi*nu*u0*L/square(dp))*dx(p))
 	)
-	+ on(Inlet, u=240*y*(1-40*y))
+	+ on(Inlet, u=6.*y*(1-y))
 	+ on(BottomWall, TopWall, u=0)
 ;
 
@@ -402,7 +404,7 @@ varf CorrectionY(v, vW)
 	)
 	+ int2d(Th)(
 		vW*((-1.)*xiL*u0*vaa
-		-(phi*nu*u0*L/square(dp))*dy(p))
+		-(phi*nu*u0*L/(H*square(dp)))*dy(p))
 	)
 	+ on(Inlet, BottomWall, TopWall, v=0)
 ;
@@ -502,8 +504,8 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-xiL*u0*(va/(square(phi)))*dy(phi))*ua+nu*(dx(phi)*dx(uphi)+dy(phi)*dy(uphi));
-    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-xiL*u0*(va/(square(phi)))*dy(phi))*va+nu*(dx(phi)*dx(vphi)+dy(phi)*dy(vphi));
+    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*ua+nu*(dx(phi)*dx(uphi)+(1/square(H))*dy(phi)*dy(uphi));
+    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-u0*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*va+nu*(dx(phi)*dx(vphi)+(1/square(H))*dy(phi)*dy(vphi));
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
@@ -535,8 +537,8 @@ for(int n=0; n < maxIter; n++){
     // ===== Calculate error and outflux =====
     error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
     outflux = int1d(Th)(u*N.x + v*N.y);
-    avgUin = (1./H)*int1d(Th,Inlet)(u);
-    avgUout = (1./H)*int1d(Th,Outlet)(u);
+    avgUin = int1d(Th,Inlet)(u);
+    avgUout = int1d(Th,Outlet)(u);
 
     cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << " . Average inlet U = " << avgUin << " and oulet = " << avgUout << endl;
 
