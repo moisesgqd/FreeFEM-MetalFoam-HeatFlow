@@ -573,6 +573,29 @@ for(int n=0; n < maxIter; n++){
 
         // ===== Apply stoping criteria =====
         if(error < maxError){
+            // Export data of last iteration
+            UFile = "VelocityU" + n;
+            VFile = "VelocityV" + n;
+            PFile = "Pressure" + n;
+
+            // --- Directories ---
+            Udir = home + "results/Velocity_X/velocity_U_" + n + ".txt";
+            Vdir = home + "results/Velocity_Y/velocity_V_" + n + ".txt";
+            Pdir = home + "results/Pressure/pressure_" + n + ".txt";
+
+            // --- Export data to files ---
+            // Export velocity on x direction
+            ofstream UFile(Udir);
+            UFile << u[] << endl;
+            
+            // Export velocity on y direction
+            ofstream VFile(Vdir);
+            VFile << v[] << endl;
+
+            // Export pressure
+            ofstream PFile(Pdir);
+            PFile << p[] << endl;
+
             cout << "Convergence achieved with error: " << error << endl;
             cout << "Average inlet U = " << avgUin << " and outlet = " << avgUout << endl;
             cout << "Exiting time loop." << endl;
