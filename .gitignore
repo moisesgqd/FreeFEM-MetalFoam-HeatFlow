@@ -39,7 +39,7 @@
 results/
 data/
 
-# Meshes
+# Mesh files
 *.msh
 
 # End of https://www.toptal.com/developers/gitignore/api/c++

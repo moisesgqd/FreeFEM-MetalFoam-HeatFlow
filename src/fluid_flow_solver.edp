@@ -116,8 +116,6 @@ real beta = properties["beta"];
 real Lgc = properties["Lgc"];
 real Vflow = properties["Vflow"];
 
-H = 0.025; // Height of the channel in meters, overwritten for testing purposes
-
 // ===== Calculate derived channel characteristics ======
 real Ac = H * W; // cross-sectional area of channel
 real u0 = Vflow / Ac; // average flow velocity
@@ -230,7 +228,6 @@ string Udir, Vdir, Pdir; // Directories to save the data files
 //																					//
 // -------------------------------------------------------------------------------- //
 
-H = 1.0; // Height of the channel in meters, overwritten for testing purposes
 // ===== Generate and print out mesh name to console ======
 string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
 cout << "Mesh name: " << meshName << endl;
@@ -265,7 +262,7 @@ int BottomWall = 1;
 int Outlet = 2;
 int TopWall= 3;
 int Inlet = 4;
-H = 0.025; // Height of the channel in meters, overwritten for testing purposes
+
 // ==========================================================
 // Create finite element spaces
 // ==========================================================
