@@ -366,12 +366,12 @@ varf CompressibleY(va, vT)
 // Outlet to the ambient, with atmosferic pressure of zero
 varf Pressure(p, q)
 	= int2d(Th)(
-		(phi/rhof)*(dx(p)*dx(q)
+		(phi*nu*u0*L/square(dp))*(dx(p)*dx(q)
 		+ dy(p)*dy(q))
 	)
 	+ int2d(Th)(
 		q*(u0*dx(uaa)+ xiL*u0*dy(vaa)
-		+ (1/rhof)*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
+		+ (nu*u0*L/square(dp))*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
 		)
 	)
 	+ on(Outlet, p=0)
@@ -389,7 +389,7 @@ varf CorrectionX(u, uW)
 	)
 	+ int2d(Th)(
 		uW*((-1.)*u0*uaa
-		-(phi/rhof)*dx(p))
+		-(phi*nu*u0*L/square(dp))*dx(p))
 	)
 	+ on(Inlet, u=240*y*(1-40*y))
 	+ on(BottomWall, TopWall, u=0)
@@ -402,7 +402,7 @@ varf CorrectionY(v, vW)
 	)
 	+ int2d(Th)(
 		vW*((-1.)*xiL*u0*vaa
-		-(phi/rhof)*dy(p))
+		-(phi*nu*u0*L/square(dp))*dy(p))
 	)
 	+ on(Inlet, BottomWall, TopWall, v=0)
 ;
