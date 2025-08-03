@@ -24,13 +24,6 @@ load "iovtk"
 // Debugging Options
 // ==========================================================
 
-// ===== Enable debugging options ======
-// For sanity check
-verbosity = false; // Set to true to enable detailed output
-bool bPlotMesh = true; // Set to true to plot the mesh
-bool bPlotData = false; // Set to true to plot the data
-bool bExportData = false; // Set to true to export data in dat format
-
 // ===== Absolute and relative paths =====
 // To read and save data files
 string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
@@ -38,6 +31,23 @@ string physicalFile = home + "data/physical_parameters.txt"; // file containing 
 string weatherFile = home + "data/weather_data.txt"; // file containing weather data
 string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
 string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
+string simOptionsFile = home + "data/simulation_options.txt"; // file containing simulation options
+
+// ===== Enable debugging options ======
+// For sanity check
+verbosity = false; // Set to true to enable detailed output
+int bPlotMesh; // Set to true to plot the mesh
+int bPlotData; // Set to true to plot the data
+int bExportData; // Set to true to export data
+
+string blank;
+
+{
+    ifstream simOptions(simOptionsFile);
+    simOptions >> blank >> bPlotMesh;
+    simOptions >> blank >> bPlotData;
+    simOptions >> blank >> bExportData;
+}
 
 // -------------------------------------------------------------------------------- //
 //																					//
@@ -50,7 +60,7 @@ string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
 // ==========================================================
 
 // ===== Define variables to store values ====== 
-string property, blank;
+string property;
 real value;
 real[string] properties;
 
@@ -86,24 +96,6 @@ real alphas = ks / (rhos * cps); // thermal diffusivity of solid
 real Pr = cpf * mu / kf; // Prandtl number
 
 // ==========================================================
-// Get weather data
-// ==========================================================
-
-// ===== Define variables to store weather data ======
-// int n=27; // size of the arrays
-// string[int] hour(n);
-// real[int] qabs(n), Tamb(n), hwind(n), Tsky(n);
-
-// // ===== Read weather data from file ======
-// {
-//     ifstream WeatherData(weatherFile);
-//     WeatherData >> blank; // ignore first line (header)
-//     for(int i=0; i<n; i++){
-//         WeatherData >> hour[i] >> qabs[i] >> Tamb[i] >> hwind[i] >> Tsky[i];
-//     }
-// } // File will close automatically after this block
-
-// ==========================================================
 // Read channel characteristics
 // ==========================================================
 
@@ -131,6 +123,29 @@ real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
 
 real xiL = H/L; // channel aspect ratio, non-dimensional
 
+// ==========================================================
+// Read mesh data
+// ==========================================================
+
+// ===== Define variables to store mesh data ======
+int nx, ny;
+string distX, distY; 
+string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+
+// ===== Declare mesh as a global variable =====
+// This allows the mesh to be accessed throughout the script without needing to pass it as a parameter
+mesh Th;
+
+// ===== Read each line of the file to save its content =====
+{
+    ifstream meshData(meshDataFile);
+    meshData >> blank >> nx;
+    meshData >> blank >> ny;
+    meshData >> blank >> distX;
+    meshData >> blank >> distY;
+    meshData >> blank >> dim;
+} // File will close automatically after this block
+
 // ==================================================================================
 // Metal foam properties          NOTE: MOST OF THIS SUBSECTION IS MANUALLY MODIFIED
 // ==================================================================================
@@ -144,11 +159,10 @@ real phic = 0.9; 	// porosity on center
 real phit = 0.97;   // porosity on top wall
 
 // --- Proposed porosity scalar field ---
-// Declare if porosity is constant or varies within the domain to print in logs file
-bool isPorosityConstant = true; // Set to true if porosity is constant, false if it varies within the domain
-
-func fphi = phib + (phit - phib)*square(y)/square(H);
-// func fphi = phib + (phit - phib)*square(y);
+// Create porosity function based on the provided parameters
+real denom = 1.; // default value for non-dimensional case
+if(dim == "dim") denom = square(H); // if dimensional, use H^2 as the denominator
+func fphi = phib + (phit - phib)*square(y)/denom; // in m/m
 
 // ===== Pore size =====
 // --- Constant pore size ---
@@ -202,39 +216,17 @@ real avgUin, avgUout; // Average velocities at the inlet and outlet
 
 // ===== Time control variables ======
 int maxIter = 1e6; // Maximum number of iterations for the time loop
-real dt = 0.0000001; // Time step size, either in seconds or in a non-dimensional form
+real dt = 0.00001; // Time step size, either in seconds or in a non-dimensional form
 
 // ===== Identifiers =====
 string UFile, VFile, PFile; // Output files for velocity and pressure
 string Udir, Vdir, Pdir; // Directories to save the data files
+
 // -------------------------------------------------------------------------------- //
 //																					//
 // 	      M E S H   H A N D L I N G   A N D   F E M   S P A C E   S E T U P         //
 //																					//
 // -------------------------------------------------------------------------------- //
-
-// ==========================================================
-// Read mesh data
-// ==========================================================
-
-// ===== Define variables to store mesh data ======
-int nx, ny;
-string distX, distY; 
-string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
-
-// ===== Declare mesh as a global variable =====
-// This allows the mesh to be accessed throughout the script without needing to pass it as a parameter
-mesh Th;
-
-// ===== Read each line of the file to save its content =====
-{
-    ifstream meshData(meshDataFile);
-    meshData >> blank >> nx;
-    meshData >> blank >> ny;
-    meshData >> blank >> distX;
-    meshData >> blank >> distY;
-    meshData >> blank >> dim;
-} // File will close automatically after this block
 
 // ===== Generate and print out mesh name to console ======
 string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
@@ -335,7 +327,7 @@ if(bPlotMesh){
 // ===== Boundary conditions =====
 // Inlet velocity function
 // This function defines the velocity at the inlet of the duct
-func uy = 6*y - 6*(y^2);
+// func uy = 6*y - 6*(y^2);
 
 // ==========================================================
 // Compressible modified Navier-Stokes equations
@@ -344,27 +336,35 @@ func uy = 6*y - 6*(y^2);
 // ===== Solve compressible part of modifies Navier-Stokes equations =====
 // In the x-direction
 varf CompressibleX(ua, uT)
-    = int2d(Th)(
-        ua*uT/dt 
-        + square(xiL)*dx(ua)*dx(uT) + dy(ua)*dy(uT)
-    )
-    + int2d(Th)(
-        (uT/dt)*convect([ReH*xiL*uphi,ReH*xiL*vphi], -dt, uold)
-    )
-    + on(Inlet, ua = uy) // Inlet function for x-velocity along the y-axis
-    + on(TopWall, BottomWall, ua = 0) // No-slip condition on walls
+	= int2d(Th)(
+		  (1./dt)*ua*uT
+		+ (nu)*(
+			  ((1/square(L))*dx(ua)*dx(uT) + (1/square(H))*dy(ua)*dy(uT))
+			)
+	)
+	+ int2d(Th)(
+		  (1./dt)*(
+			  uT*convect([(u0/L)*uphi, (u0/L)*vphi], -dt, uold)
+		)
+	)
+	+ on(Inlet, ua=6.*y*(1.-y)) 
+	+ on(TopWall, BottomWall, ua=0)
 ;
 
 // In the y-direction
 varf CompressibleY(va, vT)
-    = int2d(Th)(
-        va*vT/dt 
-        + square(xiL)*dx(va)*dx(vT) + dy(va)*dy(vT)
-    )
-    + int2d(Th)(
-        (vT/dt)*convect([ReH*xiL*uphi,ReH*xiL*vphi], -dt, vold)
-    )
-    + on(Inlet, TopWall, BottomWall, va = 0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
+	= int2d(Th)(
+		  (1./dt)*va*vT
+		+ (nu)*(
+			((1/square(L))*dx(va)*dx(vT) + (1/square(H))*dy(va)*dy(vT))
+			)
+	)
+	+ int2d(Th)(
+		  (1./dt)*(
+			vT*convect([(u0/L)*uphi, (u0/L)*vphi], -dt, vold)
+		)
+	)
+	+ on(Inlet, TopWall, BottomWall, va=0)
 ;
 
 // ==========================================================
@@ -375,12 +375,12 @@ varf CompressibleY(va, vT)
 // Outlet to the ambient, with atmosferic pressure of zero
 varf Pressure(p, q)
 	= int2d(Th)(
-		square(xip)*dx(p)*dx(q) + square(xip/xiL)*dy(p)*dy(q)
+		(phi*nu*u0*L/square(dp))*((1/square(L))*dx(p)*dx(q)
+		+ (1/square(H))*dy(p)*dy(q))
 	)
 	+ int2d(Th)(
-		q*(
-            dx(uaa)+ dy(vaa)
-		    + square(xip)*dx(phi)*dx(pold) + square(xip/xiL)*dy(phi)*dy(pold)
+		q*((u0/L)*dx(uaa)+ (u0/L)*dy(vaa)
+		+ (nu*u0*L/square(dp))*((1/square(L))*dx(phi)*dx(pold) + (1/square(H))*dy(phi)*dy(pold))
 		)
 	)
 	+ on(Outlet, p=0)
@@ -393,31 +393,27 @@ varf Pressure(p, q)
 // ===== Applied pressure correction to the velocity field =====
 // In the x-direction
 varf CorrectionX(u, uW)
-    = int2d(Th)(
-        u*uW/dt
-    )
-    - int2d(Th)(
-        uW*(
-            uaa
-            + square(xip)*phi*dx(p)
-        )
-    )
-    + on(Inlet, u=uy)
-    + on(TopWall, BottomWall, u=0) // No-slip condition on walls
+	= int2d(Th)(
+		(u0/dt)*u*uW
+	)
+	+ int2d(Th)(
+		uW*((-1.)*u0*uaa
+		-(phi*nu*u0/square(dp))*dx(p))
+	)
+	+ on(Inlet, u=6.*y*(1-y))
+	+ on(BottomWall, TopWall, u=0)
 ;
 
 // In the y-direction
 varf CorrectionY(v, vW)
-    = int2d(Th)(
-        v*vW/dt
-    )
-    - int2d(Th)(
-        vW*(
-            vaa
-            + square(xip/xiL)*phi*dy(p)
-        )
-    )
-    + on(Inlet, TopWall, BottomWall, v=0) // Vertical velocity is zero at the inlet, plus no-slip condition on walls
+	= int2d(Th)(
+		(xiL*u0/dt)*v*vW
+	)
+	+ int2d(Th)(
+		vW*((-1.)*xiL*u0*vaa
+		-(phi*nu*u0*L/(H*square(dp)))*dy(p))
+	)
+	+ on(Inlet, BottomWall, TopWall, v=0)
 ;
 
 // -------------------------------------------------------------------------------- //
@@ -480,7 +476,7 @@ for(int n=0; n < maxIter; n++){
     // ==========================================================
     // Update main variables
     // ==========================================================
-    
+
     pold = p; // Store the old pressure field
     uold = u; // Store the old x-velocity field
     vold = v; // Store the old y-velocity field
@@ -515,12 +511,12 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*xiL*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*ua+square(xiL)*dx(phi)*dx(uphi)+dy(phi)*dy(uphi);
-    vaa=((phi*square(H)/fK)+(phi*cF*H/sqrt(fK))*ReH*sqrt(ua^2+(xiL*va)^2)-(1./dt)-ReH*xiL*(ua/(square(phi)))*dx(phi)-ReH*xiL*(va/(square(phi)))*dy(phi))*va+square(xiL)*dx(phi)*dx(vphi)+dy(phi)*dy(vphi);
+    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-(u0/L)*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*ua+nu*((1/square(L))*dx(phi)*dx(uphi)+(1/square(H))*dy(phi)*dy(uphi));
+    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-(u0/L)*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*va+nu*((1/square(L))*dx(phi)*dx(vphi)+(1/square(H))*dy(phi)*dy(vphi));
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
-    
+
     // ===== Solve =====
     solPres[] = Apres^-1 * bpres;
     p = solPres;	 // Update pressure field
@@ -548,15 +544,18 @@ for(int n=0; n < maxIter; n++){
     // ===== Calculate error and outflux =====
     error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
     outflux = int1d(Th)(u*N.x + v*N.y);
-    avgUin = int1d(Th, Inlet)(u);
-    avgUout = int1d(Th, Outlet)(u);
+    avgUin = int1d(Th,Inlet)(u);
+    avgUout = int1d(Th,Outlet)(u);
 
     cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << " . Average inlet U = " << avgUin << " and oulet = " << avgUout << endl;
 
-    
-    if(n%20 == 0){
+    // Stoping condition
+    if(n%10 == 0){
         // ===== Plot data to verify    
-        plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
+        if(bPlotData){
+            plot(u, wait = true, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
+            plot(p, wait = true, cmm = "Pressure field at iteration " + n, value = true, fill=true);
+        }
 
         // ===== Export data if conditions are met =====
         if(n%100 == 0 && bExportData){
@@ -575,7 +574,7 @@ for(int n=0; n < maxIter; n++){
             ofstream UFile(Udir);
             UFile << u[] << endl;
             
-            // Exiort velocity on y direction
+            // Export velocity on y direction
             ofstream VFile(Vdir);
             VFile << v[] << endl;
 
