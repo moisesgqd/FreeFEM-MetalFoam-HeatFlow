@@ -1,42 +1,155 @@
+//////////////////////////////////////////////////////////////
+// Heat Transfer Solver for Porous Duct
+// File: heat_transfer_solver.edp
+// Description: Simulation of fluid flow in a porous duct
+// Author: Moises Quintanilla
+// Date: 06-08-2025
+//////////////////////////////////////////////////////////////
+
 // -------------------------------------------------------------------------------- //
 //																					//
-//             	     I  N  I  T  I  A  L  I  Z  A  T  I  O  N 						//
+//       	    E N V I R O N M E N T   A N D   D E B U G   S E T U P   		    //
 //																					//
 // -------------------------------------------------------------------------------- //
 
-// ------ L O A D I N G    O F    P A C K A G E S ------ //
+// ==========================================================
+// Package loading
+// ==========================================================
 
-// Set of packages for parallel proccesing
-// load "PETSc"
-// macro dimension()2// EOM
-// include "macro_ddm.idp"
-
-// Package to exports results into .vtu formar for posproccesing in ParaView
+// ===== Exporting data in VTU format =====
+// For later visualization in Paraview
 load "iovtk"
 
-// ------ D E C I S I O N   M A K I N G ------ //
+// ==========================================================
+// Debugging Options
+// ==========================================================
 
-// Reduce words on command window 
-verbosity=false;
+// ===== Absolute and relative paths =====
+// To read and save data files
+string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
+string physicalFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
+string weatherFile = home + "data/weather_data.txt"; // file containing weather data
+string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
+string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
+string simOptionsFile = home + "data/simulation_options.txt"; // file containing simulation options
 
+// ===== Enable debugging options ======
+// For sanity check
+verbosity = false; // Set to true to enable detailed output
+int bPlotMesh; // Set to true to plot the mesh
+int bPlotData; // Set to true to plot the data
+int bExportData; // Set to true to export data
 
-// For debugging and ploting when requested
-bool bPlotMesh=true;
-bool bExportTemp = false;
+string blank;
+
+{
+    ifstream simOptions(simOptionsFile);
+    simOptions >> blank >> bPlotMesh;
+    simOptions >> blank >> bPlotData;
+    simOptions >> blank >> bExportData;
+}
+
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	    I N P U T   A N D   P A R A M E T E R   I N I T I A L I Z A T I O N   		//
+//																					//
+// -------------------------------------------------------------------------------- //
+
+// ==========================================================
+// Define variables to store physical properties
+// ==========================================================
+
+// ===== Define variables to store values ====== 
+string property;
+real value;
+real[string] properties;
+
+// ==========================================================
+// Get physical properties
+// ==========================================================
+
+{
+    ifstream PhysicalData(physicalFile);
+    for(int i=0; i<11; i++) {
+        PhysicalData >> property >> value;
+        properties[property] = value;
+    }
+} // File will close automatically after this block
+
+// ===== Assign physical properties to variables ======
+real g = properties["g"];
+real sgm = properties["sgm"];
+real eC = properties["eC"];
+real eP = properties["eP"];
+real rhof = properties["rhof"];
+real cpf = properties["cpf"];
+real mu = properties["mu"];
+real kf = properties["kf"];
+real rhos = properties["rhos"];
+real cps = properties["cps"];
+real ks = properties["ks"];
+
+// ===== Calculate derived physical properties ======
+real nu = mu / rhof; // kinematic viscosity
+real alphaf = kf / (rhof * cpf); // thermal diffusivity of fluid
+real alphas = ks / (rhos * cps); // thermal diffusivity of solid
+real Pr = cpf * mu / kf; // Prandtl number
+
+// ==========================================================
+// Read channel characteristics
+// ==========================================================
+
+// ===== Read channel characteristics from file ======
+{
+    ifstream ChannelData(channelFile);
+    for(int i=0; i<6; i++){
+        ChannelData >> property >> value;
+        properties[property] = value;
+    }
+} // File will close automatically after this block
+
+// ===== Assign channel characteristics to variables ======
+real L = properties["L"];
+real H = properties["H"];
+real W = properties["W"];
+real beta = properties["beta"];
+real Lgc = properties["Lgc"];
+real Vflow = properties["Vflow"];
+
+// ===== Calculate derived channel characteristics ======
+real Ac = H * W; // cross-sectional area of channel
+real u0 = Vflow / Ac; // average flow velocity
+real ReH = rhof * u0 * H / mu; // Reynolds number based on channel height
+
+real xiL = H/L; // channel aspect ratio, non-dimensional
+
+// ==========================================================
+// Read mesh data
+// ==========================================================
+
+// ===== Define variables to store mesh data ======
+int nx, ny;
+string distX, distY; 
+string dim; // is the mesh considering a dimensional domain? Options: "non" (no-dimensional), "noH" (no-dimensional on H), "dim" (dimensional)
+
+// ===== Declare mesh as a global variable =====
+// This allows the mesh to be accessed throughout the script without needing to pass it as a parameter
+mesh Th;
+
+// ===== Read each line of the file to save its content =====
+{
+    ifstream meshData(meshDataFile);
+    meshData >> blank >> nx;
+    meshData >> blank >> ny;
+    meshData >> blank >> distX;
+    meshData >> blank >> distY;
+    meshData >> blank >> dim;
+} // File will close automatically after this block
 
 // -------------------------------------------------------------------- //
 //               V A R I A B L E    D E C L A R A T I O N				//
 // -------------------------------------------------------------------- //
 
-// Wall identification
-int BottomWall = 1;
-int Outlet = 2;
-int TopWall= 3;
-int Inlet = 4;
-
-// Nodes per axis
-int nx = 200;
-int ny = 20;
 
 // Define initial errors and outflux
 real err = 1.;
@@ -48,23 +161,6 @@ real outflux = 1.;
 int n, i;			// Counters
 real t=5.;			// time starting at 5 AM
 real dt=0.01;		// time step in seconds
-
-
-// ------ P H Y S Y C A L    S Y S T E M    P A R A M E T E R S ------ //
-
-// Channel characteristics
-real L = 2.0; 		// Length in meters
-real H = 0.025;		// Height in meters
-real W = 0.5;		// Width in meters
-
-real beta = 0.17453;		// plate inclinations in radians
-real Lcp=0.1;				// cover-plate distance in meters
-
-// Volumetric fluid flow
-real VolFlow = 0.0003125; 	// m^3/s
-
-// Average fluid velocity at inlet
-real u0 = VolFlow/(H*W); 	// m/s
 
 
 // ------ W E A T H E R    D A T A ------ //
@@ -89,192 +185,178 @@ real Ta;
 real Tp;
 real hw;
 
+// ==================================================================================
+// Metal foam properties          NOTE: MOST OF THIS SUBSECTION IS MANUALLY MODIFIED
+// ==================================================================================
 
-// ------ P O R O U S    M E D I A    P R O P E R T I E S ------ //
+// ===== Porosity =====
+// Inputs
+real yw = 0.;	// location of wall on y-axis
+real yc = 0.0125; 	// location of maximum or minimum in quadratic function
+real phib = 0.8; 	// porosity on bottom wall
+real phic = 0.9; 	// porosity on center
+real phit = 0.97;   // porosity on top wall
 
+// --- Proposed porosity scalar field ---
+// Create porosity function based on the provided parameters
+real denom = 1.; // default value for non-dimensional case
+if(dim == "dim") denom = square(H); // if dimensional, use H^2 as the denominator
+func fphi = phib + (phit - phib)*square(y)/denom; // in m/m
 
-// Porosity as a QUADRATIC function of "y"
-// Input
-// real yw = 0.;	// location of wall on y-axis
-// real yc = 0.0125; 	// location of maximum or minimum in quadratic function
-// real phiw = 0.97; 	// porosity on lower wall
-// real phic = 0.8; 	// porosity on center
+// ===== Pore size =====
+// --- Constant pore size ---
+func dp = 0.0025;
 
-// // ------ Proposed porosity scalar field ------
-// func fphi = ((phiw-phic)/(square(yw-yc)))*((y-yc)^2.)+phic;
-
-// Porosity as a LINEAR function of "y"
-// Input
-real phiw1 = 0.97; 	// porosity at lower wall
-real phiw2 = 0.83; 	// porosity at upper wall
-real y1 = 0.;	// location of lower wall on y-axis
-real y2 = H;	// location of upper wall on y-axis
-
-// ------ Proposed porosity scalar field ------
-func fphi = ((phiw2-phiw1)/(y2-y1))*(y-y1)+phiw1; // in m/m
-
-
-// Pore size as a linear function of the porosity "phi"
-// Input
-real dp1 = 0.0028; 	// known average pore size 1
-real dp2 = 0.0025; 	// known average pore size 2
-real phi1 = 0.85; 	// know porosity 1
-real phi2 = 0.95; 	// know porosity 2
-
-// ------ Proposed pore size scalar field ------
-func fdp = ((dp2-dp1)/(phi2-phi1))*(fphi-phi1)+dp1; // in m
+real xip = H/dp; // Pore aspect ratio, non-dimensional
 
 
+// ===== Filament diameter =====
+// --- Model from Calmidi and Mahajan (2000) ---
+func fdf = 1.18*dp*sqrt((1.-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04));  // in m
 
-// ------ Filament size ------
-func fdf = 1.18*fdp*sqrt((1.-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04));  // in m
-
-
-
-// ------ Tortuosity ------
-
-// Du Plesis et al (1994) model
+// ===== Tortuosity =====
+// --- Model from Du Plesis et al (1994) ---
 func Tor = 1./((3./(4*fphi))+((sqrt(9.-8.*fphi))/(2.*fphi))*cos((4*pi/3.)+(1./3)*acos((8.*square(fphi)-36.*fphi+27.)/(((9.-8.*fphi)^(3./2)))))); // in m/m
 
+// ===== Cell size =====
+// --- Model from Du Plesis et al (1994) ---
+func dc = sqrt(Tor/(3.*fphi))*dp;  // in m
 
-
-// ------ Cell size ------
-
-// Du Plesis et al (1994) model
-func dc = sqrt(Tor/(3.*fphi))*fdp;  // in m
-
-
-
-// ------ Specific interfacial area ------
-
-// Du Plesis et al (1994) model
+// ===== Specific interfacial area =====
+// --- Model from Du Plesis et al (1994) ---
 func asf = (3./dc)*(3.-Tor)*(Tor-1.); // in m^2/m^3
 
-
-
-// ------ Permeability ------
-
-// Calmidi (1998) model
+// ===== Permeability =====
+// --- Model from Calmidi (1998) ---
 func rfip=1.18*sqrt((1-fphi)/(3*pi))/(1-exp((fphi-1.)/0.04)); 		// filament to pore size ratio, in m/m
-func fK=0.00073*(fdp^2)*((1-fphi)^(-0.224))*(rfip^(-1.11)); 		// in m^2
+func fK=0.00073*(dp^2)*((1-fphi)^(-0.224))*(rfip^(-1.11)); 		// in m^2
 
-// Du Plesis et al (1994)
+// --- Model from Du Plesis et al (1994) ---
 //~ func K = square(phi*dc)/(36.*Tor*(3.-Tor));		// in m^2
 
-
-
-// ------ Forchheimer coefficient ------
-
-// Calmidi (1998) model
+// ===== Forchheimer coefficient =====
+// --- Model from Calmidi (1998) ---
 func cF=0.00212*((1-fphi)^(-0.132))*(rfip^(-1.63)); 		// non-dimensional
 
-// Du Plesis et al (1994)
+// --- Model from Du Plesis et al (1994) ---
 //~ func cF = 2.05*Tor*(Tor-1)*sqrt(K)/(square(phi)*(3.-Tor)*dc);
 
-
-
-// ------ T H E R M O P H Y S I C A L    P R O P E R T I E S ------ //
-
-// Constants
-real g=9.807;					// Earth's gravity, in m/s^2
-real sigma=5.670374419e-8;		// Stefan-Boltzmann constant, in  W/(m^2-K^4)
-
-// Emisivities
-real emisC=0.92;					// glass cover emissivity
-real emisP=0.98;					// collector plate emissivity
-
-// Fluid phase properties: water
-// Properties at 25°C and 1 atm of atmosferic pressure
-real rhof = 997.05; 		// density in kg/m^3
-real mu = 8.891e-4;			// dynamic viscosity in Pa/s or N-s/m^2
-real nu = 8.971e-7;			// kinematic viscosity in m^2/s
-real cpf = 4180.;		 	// specific heat in J/(kg-°K)
-real kf = 0.606;		 	// thermal conductivity in W/(m-°K)
-real alphaf = 0.1454e-6;	// thermal diffisivity in m^2/s
-real Pr=6.17;				// Prandtl number (non-dimensional)
-
-// Solid phase properties: aluminum
-// Properties at 25°C and 1 atm of atmosferic pressure
-real rhos = 2701.;		// density in kg/m^3
-real cps = 902.;		// specific heat in J/(kg-°K)
-real ks = 237.;			// thermal conductivity in W/(m-°K)
-real alphas = 9.728e-5;	// thermal diffusivity in m^2/s
-
-
-// Dimensional time step
-real ddt = (H^2.)/alphas;	// in seconds
-
-// ------ Stagnant thermal conductivity ------
-// Constant parameter and structural function
+// ===== Stagnant thermal conductivity =====
+// --- Constant parameter and structural function ---
 real r=0.09;
 func b=(-r+sqrt(r^2. + (2./sqrt(3))*(1-fphi)*(2.-r*(1+(4./sqrt(3))))))/((2./3)*(2.-r*(1+(4./sqrt(3)))));
 
-// For the solid
+// --- For the solid ---
 func kstgs=(sqrt(3)/2.)/((r*b/((1+b)*ks/3))+((1-r)*b/((2./3)*b*ks))+(((sqrt(3)/2.)-b)/((4*r/(3*sqrt(3)))*b*ks)));
 
-// For the fluid
+// --- For the fluid ---
 func kstgf=(sqrt(3)/2.)/((r*b/(kf-(1+b)*kf/3))+((1-r)*b/(kf-(2./3)*b*kf))+(((sqrt(3)/2.)-b)/(kf-(4*r/(3*sqrt(3)))*b*kf)));
 
-// Effective stagnant thermal conductivity
+// --- Effective stagnant thermal conductivity ---
 func kstgef=(sqrt(3)/2.)/((r*b/(kf+(1+b)*(ks-kf)/3))+((1-r)*b/(kf+(2./3)*b*(ks-kf)))+(((sqrt(3)/2.)-b)/(kf+(4*r/(3*sqrt(3)))*b*(ks-kf))));
 
 
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	      M E S H   H A N D L I N G   A N D   F E M   S P A C E   S E T U P         //
+//																					//
+// -------------------------------------------------------------------------------- //
 
+// ===== Generate and print out mesh name to console ======
+string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
+cout << "Mesh name: " << meshName << endl;
 
-// Import mesh and create spaces
-
-// Read mesh
-// Define mesh name and declare it
-mesh Th;
-string meshName = "E:/CFD_project_-_PhD_Studies/2-Var_porosity/Case_1-Linear_82_97-Channel_2x025/Fluid_flow/Mesh_" + nx + "x" + ny + "_" + L + "x" + H + ".msh";
-
-// Load mesh, if it doesn't exist, then create and save a new one
+// ===== Check if mesh file exists =====
+// If the mesh file does not exist, generate it
 try{
-	Th = readmesh(meshName);
+    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    if(bPlotMesh) plot(Th, wait = false, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
 }
 catch(...){
-	// Cosine functions are applied to make the mesh denser near the walls
-	cout << " Mesh not found " << endl;
-    // Th = square(nx, ny, [0.5*L*(1-cos(pi*x)),0.5*H*(1-cos(pi*y))], flags=2);
-	// savemesh(Th, meshName); // format freefem
-	exit(1);
+    cout <<  "                 -----> File not found. GENERATE THE MESH." << endl;
+    exit(0);
 }
 
-// Plot mesh to validate results, if necessary
-if (bPlotMesh==true) plot(Th,wait=true);
+// Check if the mesh is correct or not
+if(bPlotMesh){
+    string checkMesh = "N"; // Variable to check if the porosity field is correct
+    cout << "Is the mesh correct? Y for yes, anything else for no: "; cin >> checkMesh;
+    if (checkMesh != "Y" && checkMesh != "y") {
+        cout << "Mesh is not correct. Please check the input parameters." << endl;
+        exit(0);
+    }
+    else {
+        cout << "Mesh is correct." << endl;
+    }
+}
 
-// Import velocity fields
-// ------ Finite element domain declaration ------
+// ===== Wall identification =====
+// Since the square mesh was generated with the default FreeFEM options, the walls are identified as follows:
+int BottomWall = 1;
+int Outlet = 2;
+int TopWall= 3;
+int Inlet = 4;
+
+// ==========================================================
+// Create finite element spaces
+// ==========================================================
+
+// ===== Declare finite element base ======
 fespace Vh(Th, P2);		// for continuity and momentum problems
-Vh u, uaux, v, vaux, suaux, sqrtu;
+
+// ===== Define finite element spaces ======
+// --- Main variables ---
+// Set to zero as the initial condition
 Vh Of=T0, Os=T0;
 
-// Test or weight functions
+// --- Test or weight functions ---
 Vh wf, ws;
 
-// Previous iteration fields
-Vh Ofold, Osold, Ofaux;
+// --- Auxiliary variables ---
+Vh u, uaux, v, vaux, suaux, sqrtu;
 Vh Oalterf, Oalters;
 
-// Define porosity in a FE space based on the function
-Vh phi=fphi;
+// --- Intrinsic velocity field ---
 Vh uphi, vphi;
 
+// --- Previous time step variables or old values ---
+Vh Ofold, Osold, Ofaux;
+
+// --- Porosity as a finite element space ---
+Vh phi=fphi;
+
+// --- Solution spaces ---
+Vh solEnerF, solEnerS;
+
+// Check if the provided porosity is physically correct or not
+if(bPlotMesh){
+    plot(phi, wait = false, cmm = "Porosity field", fill = true, value = true); // Plot the porosity field for checking
+    string checkPorosity = "N"; // Variable to check if the porosity field is correct
+    cout << "Is porosity field correct? Y for yes, anything else for no: "; cin >> checkPorosity;
+    if (checkPorosity != "Y" && checkPorosity != "y") {
+        cout << "Porosity field is not correct. Please check the input parameters." << endl;
+        exit(0);
+    }
+    else {
+        cout << "Porosity field is correct." << endl;
+    }
+}
+
 // Import velocity field
-ifstream fileU("E:/CFD_project_-_PhD_Studies/2-Var_porosity/Case_2-Linear_97_83-Channel_2x025/Fluid_flow/error-4.5e-7/Velocity-X.txt");
+ifstream fileU(home + "results/Velocity_X/velocity_U_200.txt");
 fileU >> uaux[];
 u[] = uaux[]; // just in case
 u=u;
 // plot(u, wait=true, fill=true, value=true, cmm="Velocity X");
 
 // Import velocity field
-ifstream fileV("E:/CFD_project_-_PhD_Studies/2-Var_porosity/Case_2-Linear_97_83-Channel_2x025/Fluid_flow/error-4.5e-7/Velocity-Y.txt");
+ifstream fileV(home + "results/Velocity_Y/velocity_V_200.txt");
 fileV >> vaux[];
 v[] = vaux[]; // just in case
 v=v;
 // plot(v, wait=true, fill=true, value=true, cmm="Velocity Y");
 
-ifstream filesqrtU("E:/CFD_project_-_PhD_Studies/2-Var_porosity/Case_2-Linear_97_83-Channel_2x025/Fluid_flow/error-4.5e-7/SqrtVel-X.txt");
+ifstream filesqrtU(home + "results/Velocity_X/sqrt_velocity_U_200.txt");
 filesqrtU >> suaux[];
 sqrtu[] = suaux[]; // just in case
 sqrtu=sqrtu;
@@ -299,82 +381,74 @@ if(bImportTemp){
 	Os = Oalters;
 }
 
-// -------------------------------------------------------------------- //
-//			  DECLARATION OF HEAT TRANSFER FUNCTIONS  					//
-// -------------------------------------------------------------------- //
+// ==================================================================================
+// More metal foam properties   
+// ==================================================================================
 
-// ------ Thermal conductivity for dispersion effect ------
-
-// Celik et al (2018) model
-//~ func kdis = (Rep^(1.5))*(Pr^(1.63))/(((1-fphi)^(0.25))*sqrt((1-exp((fphi-1)/0.04))/fphi)); // Commmon part for the thermal dispersion thermal conductivity
-//~ func kdisX = 0.043*kdis*kf/phi;
-//~ func kdisY = 0.000191*kdis*kf/phi;
-
-// Calmada and Mahajan (2000) model
+// ===== Thermal conductivity for dispersion effect =====
+// --- Calmada and Mahajan (2000) model ---
 Vh kdisX = 0.06*rhof*cpf*u*sqrt(fK);
 Vh kdisY = 0.00444*kdisX; 						// Based on Celik et al (2018) long-transv ratio of thermal dispersion
 
 plot(kdisX,  wait=true, fill=true, value=true, cmm="Long thermal dispersion");
 
 
-// ------ Interfacial heat transfer ------
+// ===== Interfacial heat transfer =====
 
-// Pore diameter Reynolds number
-Vh sqrtRep = sqrtu*sqrt(fdp/nu); 
+// --- Pore diameter Reynolds number ---
+Vh sqrtRep = sqrtu*sqrt(dp/nu); 
 
-// Interfacial Nusselt number
-Vh Nuv = 0.94*asf*((fdp^(1.5))/(fdf^(0.5)))*((kstgf/kf)^(0.63))*sqrtRep*(Pr^0.37);
+// --- Interfacial Nusselt number ---
+Vh Nuv = 0.94*asf*((dp^(1.5))/(fdf^(0.5)))*((kstgf/kf)^(0.63))*sqrtRep*(Pr^0.37);
 
-// Interfacial HT coefficient
-Vh hv = (kf/square(fdp))*Nuv;
+// --- Interfacial HT coefficient ---
+Vh hv = (kf/square(dp))*Nuv;
 
 plot(hv,  wait=true, fill=true, value=true, cmm="HT interfacial coeff");
 
-// -------------------------------------------------- //
-//	       Pressure-corrected air properties		  //
-// -------------------------------------------------- //
+// ==================================================================================
+// Air properties corrected for Mexico City atmospheric pressure  
+// ==================================================================================
 
 // Properties have been approximated and corrected for 0.767 atm, the atmospheric pressure in Mexico City
 // The temperatures MUST BE in Kelvin.
 
-// Density in kg/m^3
+// ===== Density in kg/m^3 =====
 func real AirDensity(real Temp){
 	return (7.9254079e-9)*(Temp^4)-(9.1923232e-6)*(Temp^3)+(4.0049854e-3)*(Temp^2)-0.78007994*Temp+58.475556;
 	}
 
-// Specific heat in J/(kg-degK)
+// ===== Specific heat in J/(kg-degK) =====
 func real AirSpecHeat(real Temp){
 	return -(1.32867133e-6)*(Temp^4)+0.0015839259*(Temp^3)-0.708214367*(Temp^2)+140.7945016*Temp-9495.720001;
 	}
 
-// Thermal conductivity in W/(m-degK)
+// ===== Thermal conductivity in W/(m-degK) =====
 func real AirThermConduc(real Temp){
 	return (7.4592075e-11)*(Temp^4)-(8.8005387e-8)*(Temp^3)+(3.8884941e-5)*(Temp^2)-(0.0075513952)*Temp+0.563371025;
 	}
 
-// Thermal diffusivity in m^2/s
+// ===== Thermal diffusivity in m^2/s =====
 func real AirThemDiff(real Temp){
 	return -(4.7138047e-13)*(Temp^3)+(6.617417e-10)*(Temp^2)-(9.4213142e-8)*Temp+(9.6356601e-6);
 	}
 
-// Kinematic viscosity in m^2/s
+// ===== Kinematic viscosity in m^2/s =====
 func real AirKineVisco(real Temp){
 	return -(1.1447811e-12)*(Temp^3)+(1.1357821e-9)*(Temp^2)-(2.5183443e-7)*Temp+(2.479905e-5);
 	}
 
-// Prandtl number
+// ===== Prandtl number =====
 func real AirPrandtl(real Temp){
 	return -(2.331002e-10)*(Temp^4)+(2.87475e-7)*(Temp^3)-0.000132727*(Temp^2)+0.026919479*Temp-1.275047426;
 	}
 
+// ==================================================================================
+// Top heat loss coefficient calculation
+// ==================================================================================
 
-
-// -------------------------------------------------------------------- //
-//			  			TOP HEAT LOSS COEFFICIENT  					    //
-// -------------------------------------------------------------------- //
-
-// Temperatures are in Kelvin
-// Declare necessary variables
+// ===== NOTE: Temperatures are in Kelvin =====
+// --- Declare necessary variables ---
 int nn;					// counter
 real TempCover;			// Cover temperature
 real TempCoverPrv;		// Previous iteration over temperature
@@ -411,7 +485,7 @@ func real TopHeatLoss(real TempAmb, real TempSky, real TempPlate, real CoefWind,
 		ka = AirThermConduc(TempAvg);
 
 		// Get Rayleigh number
-		Ra = g*abs(TempPlate - TempCover)*(Lcp^3.)*Pra/(TempAvg*square(nua));
+		Ra = g*abs(TempPlate - TempCover)*(Lgc^3.)*Pra/(TempAvg*square(nua));
 
 		// Estimate a paremeter
 		ParA = Ra*cos(PlateIncl);
@@ -430,11 +504,11 @@ func real TopHeatLoss(real TempAmb, real TempSky, real TempPlate, real CoefWind,
 		}
 
 		// And from that, estimate convection coefficient
-		hcpc = Nupp*ka/Lcp;
+		hcpc = Nupp*ka/Lgc;
 
 		// Calculate radiation HT coefficients
-		hrpc = sigma*(TempPlate+TempCover)*(square(TempPlate)+square(TempCover))/((1./emisP)+(1./emisC)-1);
-		hrca = sigma*emisC*(TempCover+TempSky)*(square(TempCover)+square(TempSky));
+		hrpc = sgm*(TempPlate+TempCover)*(square(TempPlate)+square(TempCover))/((1./eP)+(1./eC)-1);
+		hrca = sgm*eC*(TempCover+TempSky)*(square(TempCover)+square(TempSky));
 
 		// Top heat loss coefficient
 		Ut = 1./((1./(hcpc + hrpc))+(1./(CoefWind + hrca)));
@@ -450,83 +524,91 @@ func real TopHeatLoss(real TempAmb, real TempSky, real TempPlate, real CoefWind,
 	return Ut;
 }
 
-// -------------------------------------------------------------------- //
-//						   PROBLEM DEFINITIONS  						//
-// -------------------------------------------------------------------- //
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	              M A T H E M A T I C A L   M O D E L   S E T U P                   //
+//																					//
+// -------------------------------------------------------------------------------- //
 
+// ===== Declare variables for the energy conservation problems =====
+Vh kfx=kstgf+kdisX;
+Vh kfy=kstgf+kdisY;
+Vh kss=kstgs;
 
-// ------ Energy conservation problems ------
+// ==========================================================
+// Energy conservation for the fluid
+// ==========================================================
+
 varf EnergyFluid (Of, wf)
 	=int2d(Th)(
 		  (fphi*rhof*cpf/dt)*Of*wf
-		+ (kstgf+kdisX)*dx(Of)*dx(wf)
-		+ (kstgf+kdisY)*dy(Of)*dy(wf)
+		+ kfx*dx(Of)*dx(wf)
+		+ kfy*dy(Of)*dy(wf)
 	)
 	+ int2d(Th)(
-		wf*((fphi*rhof*cpf/dt)*convect([uphi, vphi],-dt,Ofold)+hv*(Osold-Ofold))
+		wf*((fphi*rhof*cpf/dt)*convect([uphi, vphi],-dt,Ofold)+dx(kfx)*dx(Ofold)+dy(kfy)*dy(Ofold)+hv*(Osold-Ofold))
 	)
 	+ int1d(Th,TopWall)(
-		wf*fphi*(qa-Ut*(Tp-Ta))*(x>0.1)*(x<1.9)
-        // wf*(qa-Ut*(Tp-Ta))
+		wf*fphi*(qa-Ut*(Tp-Ta))*(x<1.9)
 	)
 	+on(Inlet, Of=T0)
 ;
 
+// ==========================================================
+// Energy conservation for the solid
+// ==========================================================
 varf EnergySolid (Os, ws)
 	=int2d(Th)(
 		  ((1-fphi)*rhos*cps/dt)*Os*ws
-		+ kstgs*( dx(Os)*dx(ws) + dy(Os)*dy(ws) )
+		+ kss*( dx(Os)*dx(ws) + dy(Os)*dy(ws) )
 	)
 	+ int2d(Th)(
-		ws*(((1-fphi)*rhos*cps/dt)*Osold + hv*(Ofold-Osold))
+		ws*(((1-fphi)*rhos*cps/dt)*Osold + dx(kss)*dx(Osold) + dy(kss)*dy(Osold) + hv*(Ofold-Osold))
 	)
 	+ int1d(Th,TopWall)(
-		ws*(1.-fphi)*(qa-Ut*(Tp-Ta))*(x>0.1)*(x<1.9)
-        // ws*(qa-Ut*(Tp-Ta))
+		ws*(1.-fphi)*(qa-Ut*(Tp-Ta))*(x<1.9)
 	)
 ;
 
-/***********************************
-*  MATRIX AND VECTORS DECLARATION  *
-***********************************/
+// -------------------------------------------------------------------------------- //
+//																					//
+// 	                L I N E A R   S Y S T E M   A S S E M B L Y                     //
+//																					//
+// -------------------------------------------------------------------------------- //
 
-// -- Serial computing --
-
+// ==========================================================
+// Define stiffness matrices
+// ==========================================================
 matrix AEnerF;			// Matrix for the energy problem for the fluid
 matrix AEnerS;			// Matrix for the energy problem for the solid
 
-// -- Parallel computing --
-
-// Mat AEnerF;			// Matrix for the energy problem for the fluid
-// Mat AEnerS;			// Matrix for the energy problem for the solid
-
-// createMat(Th, AEnerF, P2);
-// set(AEnerF, sparams="-pc_type hypre");
-
-// createMat(Th, AEnerS, P2);
-// set(AEnerS, sparams="-pc_type hypre");
-
+// ==========================================================
+// Define right hand side vectors
+// ==========================================================
 real[int] bEnerF(Vh.ndof);			// Vector for the energy problem for the fluid
 real[int] bEnerS(Vh.ndof);			// Vector for the energy problem for the solid
 
+// ==========================================================
+// Construct the linear system
+// ==========================================================
 
-/***************************************************
-    CONSTRUCT MATRIX, VECTORS AND SOLUTION SPACES   
-***************************************************/
-
+// ===== Assemble the stiffness matrices =====
 AEnerF = EnergyFluid(Vh,Vh);
 AEnerS = EnergySolid(Vh,Vh);
 
+// ===== Assemble the right hand side vectors =====
 bEnerF = EnergyFluid(0,Vh);
 bEnerS = EnergySolid(0,Vh);
 
-// ------ Solution spaces ------ //
+// -------------------------------------------------------------------------------- //
+//																					//
+//                       T I M E   S O L V E R   L O O P                            //
+//																					//
+// -------------------------------------------------------------------------------- //
 
-Vh solEnerF, solEnerS;
-
-// ---------------------- //
-//    String variables    //
-// ---------------------- //
+// ==========================================================
+// Setup for dat export
+// ==========================================================
 
 string sVelAddressTXT = "TXT_files/";
 string sVelAddressVTU = "VTU_files/";
@@ -547,32 +629,6 @@ string sVTUVelX, sVTUVelY, sVTUPres, sVTUTempF, sVTUTempS;
 
 int[int] OrderOut = [1];
 
-// ------------------------------------------------------------ //
-//		     	  LOGS FILE AND DATA EXPORT      				//
-// ------------------------------------------------------------ //
-
-// ofstream logfile("log.txt");
-// logfile << " Day of the year (dd/mm): 01/07 " << endl;
-// logfile << " Mesh density: " << nx << "x" << ny << endl;
-// logfile << " Channel size (L x H x W): " << L << "x" << H << "x" << W << endl;
-
-// Create folders to save results
-exec("mkdir TXT_files");
-exec("mkdir VTU_files");
-
-
-// -------------------------------------------------------------------- //
-//						       TIME ITERATIONS  						//
-// -------------------------------------------------------------------- //
-
-cout << "   ------ Time iterations start here ------     " << endl;
-
-// TIME ITERATIONS
-// Initialize time counting
-
-int FlowIdent=0;
-int EnerIdent=0;
-
 // Function to add zeros to the left of numbers less than 1000, as a string
 func string ThreeDigitInteger(int NaturalNumb){
 	string sResult;
@@ -590,6 +646,32 @@ func string ThreeDigitInteger(int NaturalNumb){
 	return sResult;
 }
 
+// ------------------------------------------------------------ //
+//		     	  LOGS FILE AND DATA EXPORT      				//
+// ------------------------------------------------------------ //
+
+// ofstream logfile("log.txt");
+// logfile << " Day of the year (dd/mm): 01/07 " << endl;
+// logfile << " Mesh density: " << nx << "x" << ny << endl;
+// logfile << " Channel size (L x H x W): " << L << "x" << H << "x" << W << endl;
+
+// Create folders to save results
+// exec("mkdir TXT_files");
+// exec("mkdir VTU_files");
+
+
+// ==========================================================
+// Time loop
+// ==========================================================
+
+
+cout << "   ------ Time iterations start here ------     " << endl;
+
+// Declare variables for the time loop
+int EnerIdent=0;
+
+
+
 string sIdentifier;
 
 real maxErrT;
@@ -606,18 +688,6 @@ uTOutlet = (1./H)*int1d(Th,Outlet)(u*Of);
 avgOf = int2d(Th)(Of)/Th.area;
 avgOs = int2d(Th)(Os)/Th.area;
 cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fluid T = " << avgOf << " Avg Solid T = " << avgOs << endl;
-
-// real avgkstgf = int2d(Th)(kstgf)/Th.area;
-// real avgkstgs = int2d(Th)(kstgs)/Th.area;
-
-// real devkstgf = int2d(Th)(abs(kstgf-avgkstgf))/Th.area;
-// real devkstgs = int2d(Th)(abs(kstgs-avgkstgs))/Th.area;
-
-// cout << " Average stagnant fluid thermal conductivity = " << avgkstgf << endl;
-// cout << " Average stagnant solid thermal conductivity = " << avgkstgs << endl;
-
-// cout << " Average deviation = " << devkstgf << endl;
-// cout << " Average deviation = " << devkstgs << endl;
 
 // ofstream filelog("logs.txt");
 // filelog << " Register of development of iterations for future reference. " << endl;
@@ -683,7 +753,7 @@ cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fl
 		
 		if(n % 25 == 0){
 			if(n % 100 == 0){
-				if(bExportTemp == true){
+				if(bExportData){
 					sIdentifier = ThreeDigitInteger(EnerIdent);
 					sTextTempF = sVelAddressTXT + sTempFluid + "_" + sTimeF + "_" + sIdentifier + sTextFormat;
 					sTextTempS = sVelAddressTXT + sTempSolid + "_" + sTimeF + "_" + sIdentifier + sTextFormat;
