@@ -158,9 +158,10 @@ real errs = 1.;
 real outflux = 1.;
 
 // Counter, time and iteration parameters
-int n, i;			// Counters
-real t=5.;			// time starting at 5 AM
-real dt=0.01;		// time step in seconds
+int n, i;					// Counters
+real t=5.;					// time starting at 5 AM
+real dt=0.01;				// time step in seconds
+real maxError = 1.0e-9;		// maximum error for convergence
 
 // ==========================================================
 // Get weather data
@@ -184,9 +185,9 @@ real[int] aAbsRad(n), aAmbTemp(n), aWindCoef(n), aSkyTemp(n);
 real T0 = aAmbTemp[0];
 
 // Start of time loop
-int imax = aAbsRad.n;
-int istart = 20;
-int iend = imax;
+int istart = 0;
+int imax = aAbsRad.n; // maximum number of iterations based on weather data
+int iend = 1; // end of time loop, will be updated later
 
 real qa;
 real Ts;
@@ -370,19 +371,28 @@ filesqrtU >> suaux[];
 sqrtu[] = suaux[]; // just in case
 sqrtu=sqrtu;
 
-plot(sqrtu, wait=true, fill=true, value=true, cmm="Sqrt of Velocity X");
+// plot(sqrtu, wait=true, fill=true, value=true, cmm="Sqrt of Velocity X");
 
 uphi=u/phi;
 vphi=v/phi;
 
+
+// ===== Import temperature fields, if necessary =====
 bool bImportTemp = false;
 
 if(bImportTemp){
-	ifstream fileOf0("E:/CFD_project_-_PhD_Studies/2-Var_porosity/Case_2-Linear_97_83-Channel_2x025/Heat_Transfer/TXT_files/Temp-F_1530_083.txt");
+	// Files directories
+	// NOTE: THIS HAS TO BE MANUALLY UPDATED TO THE MOST RECENT FILE
+	string dirImportFluid = home + "results/TXT_files/Temp-F/Temp-F_0600_000.txt";
+	string dirImportSolid = home + "results/TXT_files/Temp-S/Temp-S_0600_000.txt";
+
+	// Import fluid field
+	ifstream fileOf0(dirImportFluid);
 	fileOf0 >> Oalterf[];
 	Oalterf[] = Oalterf[]; // just in case
 
-	ifstream fileOs0("E:/CFD_project_-_PhD_Studies/2-Var_porosity/Case_2-Linear_97_83-Channel_2x025/Heat_Transfer/TXT_files/Temp-S_1530_083.txt");
+	// Import solid field
+	ifstream fileOs0(dirImportSolid);
 	fileOs0 >> Oalters[];
 	Oalters[] = Oalters[]; // just in case
 
@@ -399,7 +409,7 @@ if(bImportTemp){
 Vh kdisX = 0.06*rhof*cpf*u*sqrt(fK);
 Vh kdisY = 0.00444*kdisX; 						// Based on Celik et al (2018) long-transv ratio of thermal dispersion
 
-plot(kdisX,  wait=true, fill=true, value=true, cmm="Long thermal dispersion");
+// plot(kdisX,  wait=true, fill=true, value=true, cmm="Long thermal dispersion");
 
 
 // ===== Interfacial heat transfer =====
@@ -413,7 +423,7 @@ Vh Nuv = 0.94*asf*((dp^(1.5))/(fdf^(0.5)))*((kstgf/kf)^(0.63))*sqrtRep*(Pr^0.37)
 // --- Interfacial HT coefficient ---
 Vh hv = (kf/square(dp))*Nuv;
 
-plot(hv,  wait=true, fill=true, value=true, cmm="HT interfacial coeff");
+// plot(hv,  wait=true, fill=true, value=true, cmm="HT interfacial coeff");
 
 // ==================================================================================
 // Air properties corrected for Mexico City atmospheric pressure  
@@ -619,8 +629,8 @@ bEnerS = EnergySolid(0,Vh);
 // Setup for dat export
 // ==========================================================
 
-string sVelAddressTXT = "TXT_files/";
-string sVelAddressVTU = "VTU_files/";
+string sVelAddressTXT = home + "results/TXT_files/";
+// string sVelAddressVTU = home + "results/VTU_files/";
 string sVelX = "Velocity-X";
 string sVelY = "Velocity-Y";
 string sPres = "Pressure";
@@ -629,7 +639,7 @@ string sTempFluid = "Temp-F";
 string sTempSolid = "Temp-S";
 
 string sTextFormat = ".txt";
-string sVTUFormat = ".vtu";
+// string sVTUFormat = ".vtu";
 
 string sTimeF;
 
@@ -638,7 +648,7 @@ string sVTUVelX, sVTUVelY, sVTUPres, sVTUTempF, sVTUTempS;
 
 int[int] OrderOut = [1];
 
-// Function to add zeros to the left of numbers less than 1000, as a string
+// Function to make an integer a three-digit string
 func string ThreeDigitInteger(int NaturalNumb){
 	string sResult;
 	if(NaturalNumb < 10){
@@ -662,13 +672,9 @@ func string ThreeDigitInteger(int NaturalNumb){
 string logDirectory = home + "data/log.txt"; // Log file name
 ofstream logfile(logDirectory);
 logfile << " Register of development of iterations for future reference. " << endl;
-// logfile << " Day of the year (dd/mm): 01/07 " << endl;
-// logfile << " Mesh density: " << nx << "x" << ny << endl;
-// logfile << " Channel size (L x H x W): " << L << "x" << H << "x" << W << endl;
-
-// Create folders to save results
-// exec("mkdir TXT_files");
-// exec("mkdir VTU_files");
+logfile << " Day of the year (dd/mm): 08/08 " << endl;
+logfile << " Mesh density: " << nx << "x" << ny << endl;
+logfile << " Channel size (L x H x W): " << L << "x" << H << "x" << W << endl;
 
 
 // ==========================================================
@@ -686,7 +692,7 @@ int EnerIdent=0;
 string sIdentifier;
 
 real maxErrT;
-real maxErrTOld;
+real maxErrTOld=1;
 real cpu=clock();
 real bStopIter = false;
 
@@ -701,20 +707,20 @@ avgOs = int2d(Th)(Os)/Th.area;
 cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fluid T = " << avgOf << " Avg Solid T = " << avgOs << endl;
 
 
-// for(i=istart; i< iend; i++){
+for(i=istart; i< iend; i++){
+
 	// Update relevant variables
-	i=12;
 	qa = aAbsRad[i];
 	Ta = aAmbTemp[i];
 	Ts = aSkyTemp[i];
 	hw = aWindCoef[i];
-
 	sTimeF = aFormTime[i];
 
-	// Reset identifier used for temperature fields
+	// Reset identifier used for the naming of temperature fields
 	EnerIdent = 0;
 
-	// filelog << " Array position number i = " << i << " - Time hhmm = " << sTimeF << " - Absorbed radiation = " << qa << " W/m^2" << endl;
+	// Register information in the log file
+	logfile << " Array position number i = " << i << " - Time hhmm = " << sTimeF << " - Absorbed radiation = " << qa << " W/m^2" << endl;
 
 	for(n = 0; n < 15e3; n++){
 		// ENERGY CONSERVATION PROBLEM
@@ -751,8 +757,6 @@ cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fl
 
 		uTInlet = (1./H)*int1d(Th,Inlet)(u*Ofaux);
 		uTOutlet = (1./H)*int1d(Th,Outlet)(u*Ofaux);
-		// avgOf = int2d(Th)(Of)/Th.area;
-		// avgOs = int2d(Th)(Os)/Th.area;
 
 		avgOfOut = (1./H)*int1d(Th,Outlet)(Of);
 
@@ -762,12 +766,17 @@ cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fl
 		if(n % 25 == 0){
 			if(n % 100 == 0){
 				if(bExportData){
+					
+					// ===== Create file names for the exported data =====
 					sIdentifier = ThreeDigitInteger(EnerIdent);
-					sTextTempF = sVelAddressTXT + sTempFluid + "_" + sTimeF + "_" + sIdentifier + sTextFormat;
-					sTextTempS = sVelAddressTXT + sTempSolid + "_" + sTimeF + "_" + sIdentifier + sTextFormat;
 
-					sVTUTempF = sVelAddressVTU + sTempFluid + "_" + sTimeF + "_" + sIdentifier + sVTUFormat;
-					sVTUTempS = sVelAddressVTU + sTempSolid + "_" + sTimeF + "_" + sIdentifier + sVTUFormat;
+					// --- Create file names and directories for temperature fields in TXT format ---
+					sTextTempF = sVelAddressTXT + "Temp-F/" + sTempFluid + "_" + sTimeF + "_" + sIdentifier + sTextFormat;
+					sTextTempS = sVelAddressTXT + "Temp-S/" + sTempSolid + "_" + sTimeF + "_" + sIdentifier + sTextFormat;
+
+					// --- Create file names and directories for temperature fields in VTU format ---
+					// sVTUTempF = sVelAddressVTU + "Temp_F/" + sTempFluid + "_" + sTimeF + "_" + sIdentifier + sVTUFormat;
+					// sVTUTempS = sVelAddressVTU + "Temp_S/" + sTempSolid + "_" + sTimeF + "_" + sIdentifier + sVTUFormat;
 
 					ofstream FluidTempdata(sTextTempF);
 					ofstream SolidTempdata(sTextTempS);
@@ -775,14 +784,18 @@ cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fl
 					FluidTempdata << Of[] << endl;
 					SolidTempdata << Os[] << endl;
 
-					savevtk(sVTUTempF, Th, Of, order=OrderOut);
-					savevtk(sVTUTempS, Th, Os, order=OrderOut);
+					// savevtk(sVTUTempF, Th, Of, order=OrderOut);
+					// savevtk(sVTUTempS, Th, Os, order=OrderOut);
 
 					EnerIdent += 1;
 				}
 				logfile << "iter = " << n << " Fluid L2 = " << errf << " Solid L2 = " << errs << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet  << " Avg Outlet Fluid T = " << avgOfOut << endl;
 				plot(Of, wait=false, fill=true, cmm="Fluid temperature");
 			}
+
+			// Check if code is starting to diverge
+			// If the maximum error is increasing, stop the iterations
+			// and the error is greater than 1 (considering the error is typically less than 1)
 			if(n % 250 == 0){
 				if(n > 0){
 					if(((maxErrTOld-maxErrT) < 0) && (maxErrT > 1)){
@@ -792,20 +805,20 @@ cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fl
 				}
 				maxErrTOld = maxErrT;
 			}
-			if(maxErrT < 7.5e-9) {
-				// filelog << "iter = " << n << " Fluid L2 = " << errf << " Solid L2 = " << errs << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet  << " Avg Outlet Fluid T = " << avgOfOut << endl;
+			if(maxErrT < maxError) {
+				logfile << "iter = " << n << " Fluid L2 = " << errf << " Solid L2 = " << errs << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet  << " Avg Outlet Fluid T = " << avgOfOut << endl;
 				break;
 			}
 		}
 
 	}
 
-	// if(bStopIter){
-	// 	cout << " Current iterations diverges when t is " << sTimeF << endl;
-	// 	break;
-	// }
+	if(bStopIter){
+		cout << " Current iterations diverges when t is " << sTimeF << endl;
+		break;
+	}
 
-// }
+}
 
 plot(Os, wait=true, fill=true, cmm="Solid temperature");
 plot(Of, wait=true, fill=true, cmm="Fluid temperature");
