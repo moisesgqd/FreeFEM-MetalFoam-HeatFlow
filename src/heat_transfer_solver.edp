@@ -162,14 +162,23 @@ int n, i;			// Counters
 real t=5.;			// time starting at 5 AM
 real dt=0.01;		// time step in seconds
 
+// ==========================================================
+// Get weather data
+// ==========================================================
 
-// ------ W E A T H E R    D A T A ------ //
+// ===== Define variables to store weather data ======
+n=27; // size of the arrays
+string[int] aFormTime(n);
+real[int] aAbsRad(n), aAmbTemp(n), aWindCoef(n), aSkyTemp(n);
 
-string[int] aFormTime = ["0600","0630","0700","0730","0800","0830","0900","0930","1000","1030","1100","1130","1200","1230","1300", "1330","1400","1430","1500","1530","1600","1630","1700","1730","1800","1830","1900"];
-real[int] aAbsRad = [16.3 , 59.5 , 138.6 , 250.5 , 364 , 481.6 , 583.2 , 678.1 , 753.3 , 819.6 , 869.3 , 907.1 , 926.6 , 933.2 , 923.3 , 901.5 , 859.5 , 807.2 , 727.5 , 641.9 , 543.3 , 441.4 , 316.9 , 206.3 , 96.1 , 30.3 , 8.1 ];
-real[int] aAmbTemp = [289.7 , 291.95 , 292.4 , 292.85 , 294.1 , 295.35 , 296.2 , 297.05 , 297.85 , 298.65 , 299.5 , 300.35 , 300.75 , 301.15 , 301.55 , 301.95 , 302.35 , 302.75 , 302.55 , 302.35 , 302.2 , 302.05 , 301.85 , 301.65 , 301.05 , 300.45 , 299.9];
-real[int] aWindCoef = [5.4 , 5.4 , 5.4 , 5.4 , 5.4 , 5.4 , 5.7 , 6.1 , 6.6 , 7 , 7.3 , 7.6 , 8.5 , 9.3 , 10 , 10.7 , 11.3 , 12 , 11.5 , 11.1 , 10.7 , 10.3 , 9.8 , 9.3 , 9.6 , 10 , 10.4];
-real[int] aSkyTemp = [270.8 , 270.2 , 269.5 , 270.4 , 271.3 , 272.2 , 273.1 , 272.3 , 271.1 , 272.6 , 274.1 , 274.6 , 275.2 , 275.7 , 276.3 , 276.6 , 277 , 277.1 , 277.2 , 276.8 , 276.5 , 275.6 , 274.7 , 274.4 , 274 , 273.2 , 272.4];
+// ===== Read weather data from file ======
+{
+    ifstream WeatherData(weatherFile);
+    WeatherData >> blank; // ignore first line (header)
+    for(int i=0; i<n; i++){
+        WeatherData >> aFormTime[i] >> aAbsRad[i] >> aAmbTemp[i] >> aWindCoef[i] >> aSkyTemp[i];
+    }
+} // File will close automatically after this block
 
 // Inlet temperature
 real T0 = aAmbTemp[0];
@@ -549,7 +558,7 @@ varf EnergyFluid (Of, wf)
 		wf*((fphi*rhof*cpf/dt)*convect([uphi, vphi],-dt,Ofold)+dx(kfx)*dx(Ofold)+dy(kfy)*dy(Ofold)+hv*(Osold-Ofold))
 	)
 	+ int1d(Th,TopWall)(
-		wf*fphi*(qa-Ut*(Tp-Ta))*(x<1.9)
+		wf*fphi*(qa-Ut*((phi*Ofold+(1-phi)*Osold)-Ta))*(x<1.9)
 	)
 	+on(Inlet, Of=T0)
 ;
@@ -566,7 +575,7 @@ varf EnergySolid (Os, ws)
 		ws*(((1-fphi)*rhos*cps/dt)*Osold + dx(kss)*dx(Osold) + dy(kss)*dy(Osold) + hv*(Ofold-Osold))
 	)
 	+ int1d(Th,TopWall)(
-		ws*(1.-fphi)*(qa-Ut*(Tp-Ta))*(x<1.9)
+		ws*(1.-fphi)*(qa-Ut*((phi*Ofold+(1-phi)*Osold)-Ta))*(x<1.9)
 	)
 ;
 
@@ -650,7 +659,9 @@ func string ThreeDigitInteger(int NaturalNumb){
 //		     	  LOGS FILE AND DATA EXPORT      				//
 // ------------------------------------------------------------ //
 
-// ofstream logfile("log.txt");
+string logDirectory = home + "data/log.txt"; // Log file name
+ofstream logfile(logDirectory);
+logfile << " Register of development of iterations for future reference. " << endl;
 // logfile << " Day of the year (dd/mm): 01/07 " << endl;
 // logfile << " Mesh density: " << nx << "x" << ny << endl;
 // logfile << " Channel size (L x H x W): " << L << "x" << H << "x" << W << endl;
@@ -688,9 +699,6 @@ uTOutlet = (1./H)*int1d(Th,Outlet)(u*Of);
 avgOf = int2d(Th)(Of)/Th.area;
 avgOs = int2d(Th)(Os)/Th.area;
 cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fluid T = " << avgOf << " Avg Solid T = " << avgOs << endl;
-
-// ofstream filelog("logs.txt");
-// filelog << " Register of development of iterations for future reference. " << endl;
 
 
 // for(i=istart; i< iend; i++){
@@ -772,7 +780,7 @@ cout << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet << " Avg Fl
 
 					EnerIdent += 1;
 				}
-				// filelog << "iter = " << n << " Fluid L2 = " << errf << " Solid L2 = " << errs << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet  << " Avg Outlet Fluid T = " << avgOfOut << endl;
+				logfile << "iter = " << n << " Fluid L2 = " << errf << " Solid L2 = " << errs << " Inlet u*Tf = " << uTInlet << " Outlet u*Tf = " << uTOutlet  << " Avg Outlet Fluid T = " << avgOfOut << endl;
 				plot(Of, wait=false, fill=true, cmm="Fluid temperature");
 			}
 			if(n % 250 == 0){
