@@ -99,7 +99,7 @@ for(int i=0; i < vardimension.n; i++){
 real[string] vardimX, vardimY;
 
 vardimX[vardimension[0]] = L; // Dimensional x coordinate
-vardimX[vardimension[1]] = L/H; // Non-dimensional x coordinate on H   
+vardimX[vardimension[1]] = L; // Non-dimensional x coordinate on H   
 vardimX[vardimension[2]] = 1.0; // Non-dimensional x coordinate
 
 vardimY[vardimension[0]] = H; // Dimensional y coordinate

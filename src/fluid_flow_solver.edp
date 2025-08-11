@@ -228,7 +228,6 @@ string Udir, Vdir, Pdir; // Directories to save the data files
 //																					//
 // -------------------------------------------------------------------------------- //
 
-
 // ===== Generate and print out mesh name to console ======
 string meshName = "mesh_" + nx + "x" + ny + "_" + L + "x" + H + "-" + dim + "_" + distX + "-" + distY + ".msh"; // Name of the mesh file to save
 cout << "Mesh name: " << meshName << endl;
@@ -309,6 +308,16 @@ if(bPlotMesh){
     }
 }
 
+// {
+//     ifstream fileU(home + "results/Velocity_X/velocity_U_400.txt");
+//     fileU >> uaux[];
+// }
+
+// u[] = uaux[];
+
+// plot(u, wait = true, cmm = "X-velocity field at the beginning", value = true, fill=true); // Plot the initial x-velocity field
+// exit(1);
+
 // -------------------------------------------------------------------------------- //
 //																					//
 // 	              M A T H E M A T I C A L   M O D E L   S E T U P                   //
@@ -330,15 +339,15 @@ varf CompressibleX(ua, uT)
 	= int2d(Th)(
 		  (1./dt)*ua*uT
 		+ (nu)*(
-			  (dx(ua)*dx(uT) + dy(ua)*dy(uT))
+			  ((1/square(L))*dx(ua)*dx(uT) + (1/square(H))*dy(ua)*dy(uT))
 			)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			  uT*convect([uphi, vphi], -dt, uold)
+			  uT*convect([(u0/L)*uphi, (u0/L)*vphi], -dt, uold)
 		)
 	)
-	+ on(Inlet, ua=240*u0*y*(1-40*y)) 
+	+ on(Inlet, ua=6.*y*(1.-y)) 
 	+ on(TopWall, BottomWall, ua=0)
 ;
 
@@ -347,12 +356,12 @@ varf CompressibleY(va, vT)
 	= int2d(Th)(
 		  (1./dt)*va*vT
 		+ (nu)*(
-			(dx(va)*dx(vT) + dy(va)*dy(vT))
+			((1/square(L))*dx(va)*dx(vT) + (1/square(H))*dy(va)*dy(vT))
 			)
 	)
 	+ int2d(Th)(
 		  (1./dt)*(
-			vT*convect([uphi, vphi], -dt, vold)
+			vT*convect([(u0/L)*uphi, (u0/L)*vphi], -dt, vold)
 		)
 	)
 	+ on(Inlet, TopWall, BottomWall, va=0)
@@ -366,12 +375,12 @@ varf CompressibleY(va, vT)
 // Outlet to the ambient, with atmosferic pressure of zero
 varf Pressure(p, q)
 	= int2d(Th)(
-		(phi/rhof)*(dx(p)*dx(q)
-		+ dy(p)*dy(q))
+		(phi*nu*u0*L/square(dp))*((1/square(L))*dx(p)*dx(q)
+		+ (1/square(H))*dy(p)*dy(q))
 	)
 	+ int2d(Th)(
-		q*(dx(uaa)+ dy(vaa)
-		+ (1/rhof)*(dx(phi)*dx(pold) + dy(phi)*dy(pold))
+		q*((u0/L)*dx(uaa)+ (u0/L)*dy(vaa)
+		+ (nu*u0*L/square(dp))*((1/square(L))*dx(phi)*dx(pold) + (1/square(H))*dy(phi)*dy(pold))
 		)
 	)
 	+ on(Outlet, p=0)
@@ -385,24 +394,24 @@ varf Pressure(p, q)
 // In the x-direction
 varf CorrectionX(u, uW)
 	= int2d(Th)(
-		(1./dt)*u*uW
+		(u0/dt)*u*uW
 	)
 	+ int2d(Th)(
-		uW*((-1.)*uaa
-		-(phi/rhof)*dx(p))
+		uW*((-1.)*u0*uaa
+		-(phi*nu*u0/square(dp))*dx(p))
 	)
-	+ on(Inlet, u=240*u0*y*(1-40*y))
+	+ on(Inlet, u=6.*y*(1-y))
 	+ on(BottomWall, TopWall, u=0)
 ;
 
 // In the y-direction
 varf CorrectionY(v, vW)
 	= int2d(Th)(
-		(1./dt)*v*vW
+		(xiL*u0/dt)*v*vW
 	)
 	+ int2d(Th)(
-		vW*((-1.)*vaa
-		-(phi/rhof)*dy(p))
+		vW*((-1.)*xiL*u0*vaa
+		-(phi*nu*u0*L/(H*square(dp)))*dy(p))
 	)
 	+ on(Inlet, BottomWall, TopWall, v=0)
 ;
@@ -502,8 +511,8 @@ for(int n=0; n < maxIter; n++){
     vphi=va/phi;
 
     // --- Auxiliary variables for pressure correction ---
-    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*sqrt(ua^2+va^2)-(1./dt)-(ua/(square(phi)))*dx(phi)-(va/(square(phi)))*dy(phi))*ua+(nu)*(dx(phi)*dx(uphi)+dy(phi)*dy(uphi));
-    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*sqrt(ua^2+va^2)-(1./dt)-(ua/(square(phi)))*dx(phi)-(va/(square(phi)))*dy(phi))*va+(nu)*(dx(phi)*dx(vphi)+dy(phi)*dy(vphi));
+    uaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-(u0/L)*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*ua+nu*((1/square(L))*dx(phi)*dx(uphi)+(1/square(H))*dy(phi)*dy(uphi));
+    vaa=((phi*nu/fK)+(phi*cF/sqrt(fK))*u0*sqrt(ua^2+(xiL*va)^2)-(1./dt)-(u0/L)*(ua/(square(phi)))*dx(phi)-(u0/L)*(va/(square(phi)))*dy(phi))*va+nu*((1/square(L))*dx(phi)*dx(vphi)+(1/square(H))*dy(phi)*dy(vphi));
     
     // ===== Reconstruct RHS vectors =====
     bpres = Pressure(0,Vh);
@@ -535,15 +544,18 @@ for(int n=0; n < maxIter; n++){
     // ===== Calculate error and outflux =====
     error = sqrt(int2d(Th)(square(u-uold)+square(v-vold))/Th.area);	
     outflux = int1d(Th)(u*N.x + v*N.y);
-    avgUin = (1./H)*int1d(Th,Inlet)(u);
-    avgUout = (1./H)*int1d(Th,Outlet)(u);
+    avgUin = int1d(Th,Inlet)(u);
+    avgUout = int1d(Th,Outlet)(u);
 
     cout << "iter = " << n << " , Error L2 = " << error << " , outflux = " << outflux << " . Average inlet U = " << avgUin << " and oulet = " << avgUout << endl;
 
     // Stoping condition
     if(n%10 == 0){
         // ===== Plot data to verify    
-        if(bPlotData) plot(u, wait = false, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
+        if(bPlotData){
+            plot(u, wait = true, cmm = "X-velocity field at iteration " + n, value = true, fill=true);
+            plot(p, wait = true, cmm = "Pressure field at iteration " + n, value = true, fill=true);
+        }
 
         // ===== Export data if conditions are met =====
         if(n%100 == 0 && bExportData){
