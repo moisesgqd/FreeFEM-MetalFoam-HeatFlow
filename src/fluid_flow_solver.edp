@@ -26,12 +26,11 @@ load "iovtk"
 
 // ===== Absolute and relative paths =====
 // To read and save data files
-string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
-string physicalFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
-string weatherFile = home + "data/weather_data.txt"; // file containing weather data
-string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
-string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
-string simOptionsFile = home + "data/simulation_options.txt"; // file containing simulation options
+string physicalFile = "../data/physical_parameters.txt"; // file containing 11 physical parameters
+string weatherFile = "../data/weather_data.txt"; // file containing weather data
+string channelFile = "../data/channel_characteristics.txt"; // file containing channel characteristics
+string meshDataFile = "../data/mesh_data.txt"; // file containing mesh data
+string simOptionsFile = "../data/simulation_options.txt"; // file containing simulation options
 
 // ===== Enable debugging options ======
 // For sanity check
@@ -235,7 +234,7 @@ cout << "Mesh name: " << meshName << endl;
 // ===== Check if mesh file exists =====
 // If the mesh file does not exist, generate it
 try{
-    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    Th = readmesh("../mesh/" + meshName); // Read the mesh from a file
     if(bPlotMesh) plot(Th, wait = false, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
 }
 catch(...){
@@ -309,7 +308,7 @@ if(bPlotMesh){
 }
 
 // {
-//     ifstream fileU(home + "results/Velocity_X/velocity_U_400.txt");
+//     ifstream fileU("../results/Velocity_X/velocity_U_400.txt");
 //     fileU >> uaux[];
 // }
 
@@ -565,9 +564,9 @@ for(int n=0; n < maxIter; n++){
             PFile = "Pressure" + n;
 
             // --- Directories ---
-            Udir = home + "results/Velocity_X/velocity_U_" + n + ".txt";
-            Vdir = home + "results/Velocity_Y/velocity_V_" + n + ".txt";
-            Pdir = home + "results/Pressure/pressure_" + n + ".txt";
+            Udir = "../results/Velocity_X/velocity_U_" + n + ".txt";
+            Vdir = "../results/Velocity_Y/velocity_V_" + n + ".txt";
+            Pdir = "../results/Pressure/pressure_" + n + ".txt";
 
             // --- Export data to files ---
             // Export velocity on x direction
@@ -591,9 +590,9 @@ for(int n=0; n < maxIter; n++){
             PFile = "Pressure" + n;
 
             // --- Directories ---
-            Udir = home + "results/Velocity_X/velocity_U_" + n + ".txt";
-            Vdir = home + "results/Velocity_Y/velocity_V_" + n + ".txt";
-            Pdir = home + "results/Pressure/pressure_" + n + ".txt";
+            Udir = "../results/Velocity_X/velocity_U_" + n + ".txt";
+            Vdir = "../results/Velocity_Y/velocity_V_" + n + ".txt";
+            Pdir = "../results/Pressure/pressure_" + n + ".txt";
 
             // --- Export data to files ---
             // Export velocity on x direction

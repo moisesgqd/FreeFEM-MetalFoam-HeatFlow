@@ -26,12 +26,11 @@ load "iovtk"
 
 // ===== Absolute and relative paths =====
 // To read and save data files
-string home = "E:/FreeFEM_projects/PhD_research/porous_duct/";
-string physicalFile = home + "data/physical_parameters.txt"; // file containing 11 physical parameters
-string weatherFile = home + "data/weather_data.txt"; // file containing weather data
-string channelFile = home + "data/channel_characteristics.txt"; // file containing channel characteristics
-string meshDataFile = home + "data/mesh_data.txt"; // file containing mesh data
-string simOptionsFile = home + "data/simulation_options.txt"; // file containing simulation options
+string physicalFile = "../data/physical_parameters.txt"; // file containing 11 physical parameters
+string weatherFile = "../data/weather_data.txt"; // file containing weather data
+string channelFile = "../data/channel_characteristics.txt"; // file containing channel characteristics
+string meshDataFile = "../data/mesh_data.txt"; // file containing mesh data
+string simOptionsFile = "../data/simulation_options.txt"; // file containing simulation options
 
 // ===== Enable debugging options ======
 // For sanity check
@@ -279,7 +278,7 @@ cout << "Mesh name: " << meshName << endl;
 // ===== Check if mesh file exists =====
 // If the mesh file does not exist, generate it
 try{
-    Th = readmesh(home + "mesh/" + meshName); // Read the mesh from a file
+    Th = readmesh("../mesh/" + meshName); // Read the mesh from a file
     if(bPlotMesh) plot(Th, wait = false, cmm = "Mesh of the porous duct"); // Plot the mesh if bPlotMesh is true
 }
 catch(...){
@@ -353,20 +352,20 @@ if(bPlotMesh){
 }
 
 // Import velocity field
-ifstream fileU(home + "results/Velocity_X/velocity_U_200.txt");
+ifstream fileU("../results/Velocity_X/velocity_U_200.txt");
 fileU >> uaux[];
 u[] = uaux[]; // just in case
 u=u;
 // plot(u, wait=true, fill=true, value=true, cmm="Velocity X");
 
 // Import velocity field
-ifstream fileV(home + "results/Velocity_Y/velocity_V_200.txt");
+ifstream fileV("../results/Velocity_Y/velocity_V_200.txt");
 fileV >> vaux[];
 v[] = vaux[]; // just in case
 v=v;
 // plot(v, wait=true, fill=true, value=true, cmm="Velocity Y");
 
-ifstream filesqrtU(home + "results/Velocity_X/sqrt_velocity_U_200.txt");
+ifstream filesqrtU("../results/Velocity_X/sqrt_velocity_U_200.txt");
 filesqrtU >> suaux[];
 sqrtu[] = suaux[]; // just in case
 sqrtu=sqrtu;
@@ -383,8 +382,8 @@ bool bImportTemp = false;
 if(bImportTemp){
 	// Files directories
 	// NOTE: THIS HAS TO BE MANUALLY UPDATED TO THE MOST RECENT FILE
-	string dirImportFluid = home + "results/TXT_files/Temp-F/Temp-F_0600_000.txt";
-	string dirImportSolid = home + "results/TXT_files/Temp-S/Temp-S_0600_000.txt";
+	string dirImportFluid = "../results/TXT_files/Temp-F/Temp-F_0600_000.txt";
+	string dirImportSolid = "../results/TXT_files/Temp-S/Temp-S_0600_000.txt";
 
 	// Import fluid field
 	ifstream fileOf0(dirImportFluid);
@@ -629,8 +628,8 @@ bEnerS = EnergySolid(0,Vh);
 // Setup for dat export
 // ==========================================================
 
-string sVelAddressTXT = home + "results/TXT_files/";
-// string sVelAddressVTU = home + "results/VTU_files/";
+string sVelAddressTXT = "../results/TXT_files/";
+// string sVelAddressVTU = "../results/VTU_files/";
 string sVelX = "Velocity-X";
 string sVelY = "Velocity-Y";
 string sPres = "Pressure";
@@ -669,7 +668,7 @@ func string ThreeDigitInteger(int NaturalNumb){
 //		     	  LOGS FILE AND DATA EXPORT      				//
 // ------------------------------------------------------------ //
 
-string logDirectory = home + "data/log.txt"; // Log file name
+string logDirectory = "../data/log.txt"; // Log file name
 ofstream logfile(logDirectory);
 logfile << " Register of development of iterations for future reference. " << endl;
 logfile << " Day of the year (dd/mm): 08/08 " << endl;
