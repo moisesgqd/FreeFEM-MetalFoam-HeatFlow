@@ -38,6 +38,7 @@
 # Directories
 results/
 data/
+logs/
 
 # Mesh files
 *.msh
