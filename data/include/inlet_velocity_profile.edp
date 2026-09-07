@@ -1,0 +1,2 @@
+// func uin = 6*y*(1-y); // Parabolic non-dimensional profile
+func uin = 1.0; // uniform unit velocity profile

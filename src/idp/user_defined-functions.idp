@@ -1,0 +1,49 @@
+func Pk = P2;
+
+func real[int] replaceNansInArray(real[int] & oldArray, real replaceValue){
+    int nanCount = 0;
+    real[int] newArray = oldArray;
+    for(int i=0; i<newArray.n; i++){
+        if(isNaN(newArray[i])){
+            newArray[i] = replaceValue;
+            nanCount++;
+        }
+    }
+    
+    cout << "Number of checked elements: " << oldArray.n << endl;
+    cout << "Number of NaN values found: " << nanCount << endl;
+    
+    return newArray;
+}
+
+macro importMesh(meshName){
+    try{
+        Th = readmesh("../mesh/" + meshName);
+        cout << " Mesh successfully loaded." << endl;
+    }
+    catch(...){
+        cout << " Error: Mesh could not be loaded. Exiting program." << endl;
+        exit(1);
+    }
+} // End of macro
+
+macro checkOptionInArray(arrayName, option) {
+for(int i=0; i < arrayName.n; i++){
+    if(option == arrayName[i]){
+        cout << "Valid option: " << option << endl;
+        break;
+    }
+    else if(i == arrayName.n - 1){
+        cout << "Invalid option: " << option << endl;
+        cout << "Valid options are: ";
+        for(int j=0; j < arrayName.n; j++){
+            cout << arrayName[j] << " ";
+        }
+        cout << "Refer to the README file for more information on these options." << endl;
+        exit(1);
+    }
+}
+} // End of macro
+
+macro cosineFunction(variable, verticalShift, delta, horizontalShift)  verticalShift + delta*(1 - cos(pi*(variable - horizontalShift))); // EOM
+macro hyperbolicTangentFunction(variable, center, steepness, delta) center + (delta/(2*tanh(0.5*steepness)))*tanh(steepness*(variable - center)/delta); // EOM

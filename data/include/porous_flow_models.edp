@@ -1,0 +1,44 @@
+// Geometric parameter (Calmidi, 1998)
+Vh1 fG = 1-exp((phi-1.)/0.04);
+
+// Filement-to-pore ratio (Calmidi, 1998)
+Vh1 rfip=(1.18/fG)*sqrt((1-phi)/(3*pi)); // df/dp, where df is the diameter of the filament and dp is the diameter of the pore
+
+// Relative permeability  (Calmidi, 1998)
+Vh1 fKp=0.00073*((1-phi)^(-0.224))*(rfip^(-1.11));    // K/dp^2
+
+// Forchheimer coefficient (Calmidi, 1998)
+Vh1 cF=0.00212*((1-phi)^(-0.132))*(rfip^(-1.63));
+
+// Inverse tortuosity (Du Plesis et al., 1994)
+Vh1 aTor = (3./(4*phi))+((sqrt(9.-8.*phi))/(2.*phi))*cos((4*pi/3.)+(1./3)*acos((8.*square(phi)-36.*phi+27.)/(((9.-8.*phi)^(3./2))))); // in m/m
+
+// Cell-to-pore ratio (Du Plesis et al., 1994)
+Vh1 rcp = sqrt(3.*phi*aTor); // dc/dp, where dc is the diameter of the cell and dp is the diameter of the pore
+
+// Cell size (Andreozzi et al., 2020)
+// real PPI = 10; // in PPI
+// Vh dcc = 0.001*(5.3564-0.921*log(PPI)); // in m
+
+// Specific interfacial area (Du Plesis et al., 1994)
+// Vh asf = (3./dc)*(3.-Tor)*(Tor-1.); // in m^2/m^3
+
+// Relative specific interfacial area (Raje and Dhiman, 2026; Calmidi and Mahajan, 2000)
+Vh1 asfdp = (3*pi*fG/square(0.59))*rfip; // non-dimensional
+
+// For validation purposes
+Vh1 vfG = fG;
+Vh1 vrfip = rfip;
+Vh1 vfKp = fKp;
+Vh1 vcF = cF;
+Vh1 vaTor = aTor;
+Vh1 vrcp = rcp;  
+
+if(isPlotModels){
+    plot(vfG, fill=true, value=true, wait=true, cmm="fG");
+    plot(vrfip, fill=true, value=true, wait=true, cmm="rfip");
+    plot(vfKp, fill=true, value=true, wait=true, cmm="fKp");
+    plot(vcF, fill=true, value=true, wait=true, cmm="cF");
+    plot(vaTor, fill=true, value=true, wait=true, cmm="aTor");
+    plot(vrcp, fill=true, value=true, wait=true, cmm="rcp");
+}

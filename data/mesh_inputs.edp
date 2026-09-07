@@ -1,0 +1,7 @@
+//
+nx = 50;
+ny = 60;
+dim = "non";
+distX = "trigo";
+//distY = "trigo";
+distY = "trigo22";

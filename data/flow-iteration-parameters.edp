@@ -1,0 +1,12 @@
+// 
+initIter = 0; // default value = 0
+maxIter = 25e3;
+
+exportCounter = 0; // default value = 0
+
+checkLoopEvery = 10;
+convergenceMultiplier = 20;
+exportMultiplier = 100;
+
+maxDiffInVelocity = 1e-9;
+maxDiffInPressure = 1e-8;

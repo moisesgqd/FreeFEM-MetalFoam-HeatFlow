@@ -1,0 +1,16 @@
+//
+// Channel dimensions (L-length, H-height, W-width; in meters)
+L = 2.0; 
+H = 0.025;
+W = 0.5;
+
+// Other geometric parameters
+beta = 0.0;		    // plate inclinations in radians
+Lcp = 0.1;			// cover-plate separation in meters
+
+// Volumetric fluid flow at inlet in  m^3/s
+VolFlow = 0.0003125;
+
+// Non-dimensional time steps (f-flow solver, h-heat solver)
+dtf=1e-6;
+dth=1e-1;

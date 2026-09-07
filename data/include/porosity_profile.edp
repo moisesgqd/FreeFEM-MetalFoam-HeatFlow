@@ -1,0 +1,21 @@
+//
+real phib = 0.95; 	// porosity on bottom wall
+real phit = 0.85;   // porosity on top wall
+
+//func fphi = phib + (phit - phib)*y;   // non-dimensional
+func fphi = phib*(y<0.5) + phit*(y>=0.5); // non-dimensional
+
+Vh1 phi=fphi;
+Vh1 fx=x;
+Vh1 fy=y;
+
+if(isPlotPhi) plot(phi, wait=true, fill=true, value=true, cmm="Porosity");
+
+real phiAvg = int2d(Th)(phi)/Th.area;
+cout << "Average porosity = " << phiAvg << endl;
+
+real xipb = 15.0;
+real xipt = 5.0;
+
+func fxip = xipb*(y<0.5) + xipt*(y>=0.5); // non-dimensional
+Vh1 epsP = fxip;

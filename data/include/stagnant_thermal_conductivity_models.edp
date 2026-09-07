@@ -1,0 +1,11 @@
+// Constant parameter and structural function
+real r=0.09;
+Vh b=(-r+sqrt(r^2. + (2./sqrt(3))*(1-phi)*(2.-r*(1+(4./sqrt(3))))))/((2./3)*(2.-r*(1+(4./sqrt(3)))));
+
+// For the solid: Calmada and Mahajan (2000)
+Vh kstgsnorm=(sqrt(3)/2.)/((r*b/((1+b)/3))+((1-r)*b/((2./3)*b))+(((sqrt(3)/2.)-b)/((4*r/(3*sqrt(3)))*b)));
+// Vh kstgs=(sqrt(3)/2.)/((r*b/((1+b)*ks/3))+((1-r)*b/((2./3)*b*ks))+(((sqrt(3)/2.)-b)/((4*r/(3*sqrt(3)))*b*ks)));
+
+// For the fluid: Calmada and Mahajan (2000)
+Vh kstgfnorm=(sqrt(3)/2.)/((r*b/(1-(1+b)/3))+((1-r)*b/(1-(2./3)*b))+(((sqrt(3)/2.)-b)/(1-(4*r/(3*sqrt(3)))*b)));
+// Vh kstgf=(sqrt(3)/2.)/((r*b/(kf-(1+b)*kf/3))+((1-r)*b/(kf-(2./3)*b*kf))+(((sqrt(3)/2.)-b)/(kf-(4*r/(3*sqrt(3)))*b*kf)));

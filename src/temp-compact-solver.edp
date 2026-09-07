@@ -1,0 +1,272 @@
+/******************************************************************************
+ * INITIALIZATION *
+ *****************************************************************************/
+
+bool isPlotMesh, isPlotPhi, isPlotVelocities, isExportTemp, isImportTemp, isPlotModels;
+include "../data/heat-input_options.edp" // Included in file: verbosity = false
+
+include "idp/user_defined-functions.idp" // Included in file: Pk
+
+// Relevant parameters
+real L, H, W, beta, Lcp, VolFlow, dtf, dth;
+real ReH, xiL, xip, Pr, alphap;
+real kp, qP, BiH, thetaPlate, thetaAmb;
+
+include "../data/channel_characteristics.edp"
+include "../data/flow-non_dim-parameters.edp"
+include "../data/heat-non_dim-parameters.edp"
+
+real PeH = ReH*Pr;
+real dtau = dth;
+
+// Iteration parameters
+int initIter, maxIter, exportCounter, checkLoopEvery, convergenceMultiplier, exportMultiplier;
+real maxDiffInTemp;
+
+include "../data/heat-iteration-parameters.edp"
+
+int checkConvergenceEvery = convergenceMultiplier*checkLoopEvery;
+int exportEvery = exportMultiplier*checkLoopEvery;
+
+// Constants parameters
+real squareEpsL = square(xiL);
+real dtauAlter = Pr*alphap*xiL*ReH*dtau;
+
+// Macros
+macro WallHeatFlux(temp) (qP - BiH*(phi*temp#FluidOld + (1-phi)*temp#SolidOld - temp#Amb)) // EOM
+macro Advect(temp) convect([uphi, vphi], -dtauAlter, temp#Old) // EOM
+
+/******************************************************************************
+ * MESH AND FINITE ELEMENT SPACES *
+ *****************************************************************************/
+
+// Wall identifiers
+int BottomWall = 1, Outlet = 2, TopWall= 3, Inlet = 4;
+
+// Define mesh name and load it
+int nx, ny;
+string dim, distX, distY;
+include "../data/mesh_inputs.edp"
+
+string meshName;
+if(dim == "dim"){
+    meshName = "mesh-" + nx + "x" + ny + "-" + dim + "-" + L + "x" + H + "-" + distX + "_" + distY + ".msh";
+}
+else
+    meshName = "mesh-" + nx + "x" + ny + "-" + dim + "-" + distX + "_" + distY + ".msh";
+
+mesh Th;
+importMesh(meshName) // a macro
+if (isPlotMesh) plot(Th,wait=true);
+
+// Declare finite element fields
+fespace Vh(Th, Pk);
+fespace Vh1(Th, P1);
+fespace Vh0(Th, P0);
+
+Vh thetaFluid=0, thetaSolid=0;		// Main varaible fields
+Vh wf, ws;			// Test or weight functions
+Vh uFluid, vFluid, sqrtu;		// Velocity fields imported from flow simulation
+Vh uphi, vphi;		// Intrinsic velocity fields
+Vh thetaFluidOld, thetaSolidOld;	// Previous iteration fields
+Vh1 epsP = xip;
+
+// ----- Import velocity fields from flow simulation -----
+string folderVel = "../results/flowTXT";
+
+ifstream fileU(folderVel + "/Velocity-X.txt");
+fileU >> uFluid[];
+
+ifstream fileV(folderVel + "/Velocity-Y.txt");
+fileV >> vFluid[];
+
+ifstream filesqrtU(folderVel + "/SqrtVel-X.txt");
+filesqrtU >> sqrtu[];
+
+if(isPlotVelocities){
+	plot(uFluid, wait=true, fill=true, value=true, cmm="Non-dim Velocity X");
+	plot(vFluid, wait=true, fill=true, value=true, cmm="Non-dim Velocity Y");
+	plot(sqrtu, wait=true, fill=true, value=true, cmm="Sqrt of non-dim Velocity X");
+}
+
+/******************************************************************************
+ * MODELS OF POROUS MEDIA PROPERTIES *
+ *****************************************************************************/
+
+// The porosity distribution
+include "../data/include/porosity_profile.edp"
+
+// File already containg function for porosity (fphi) and finite element space (Vh phi).
+// It ALSO contains: Vh fx = x, fy = y;
+
+// Metal foam property models
+include "../data/include/porous_flow_models.edp"
+include "../data/include/stagnant_thermal_conductivity_models.edp"
+include "../data/include/dispersion_interfacial_heat_models.edp"
+
+/******************************************************************************
+ * VARIATIONAL PROBLEM DEFINITION *
+ *****************************************************************************/
+
+// Import initial fields, if specified
+if(isImportTemp){
+	string folderTemp = "../results/tempTXT";
+
+	ifstream fileOf0(folderTemp + "/Temp_F.txt");
+	fileOf0 >> thetaFluid[];
+	
+	ifstream fileOs0(folderTemp + "/Temp_S.txt");
+	fileOs0 >> thetaSolid[];
+
+	plot(thetaFluid, wait=true, fill=true, value=true, cmm="Imported non-dim fluid temp");
+	plot(thetaSolid, wait=true, fill=true, value=true, cmm="Imported non-dim solid temp");
+}
+
+// Update intrinsic velocity fields for convect function
+uphi=uFluid/phi;
+vphi=vFluid/phi;
+
+Vh1 dTauFluid = phi/(alphap*dtau);
+Vh1 dTauSolid = (1-phi)/dtau;
+
+Vh interfacialFluid = square(epsP)*Nuv; // interfacial heat transfer coefficient
+Vh interfacialSolid = kp*square(epsP)*Nuv; // interfacial heat transfer coefficient
+
+Vh1 kFluidnormX = (kstgfnorm+kdisnormX)*squareEpsL;
+Vh1 kFluidnormY = (kstgfnorm+kdisnormY);
+
+Vh1 kSolidX = kstgsnorm*squareEpsL;
+
+// ---------------------------------------------------------
+// Define variational formulations
+// ---------------------------------------------------------
+varf EnergyFluid (thetaFluid, wf)
+	=int2d(Th)(
+		(dTauFluid)*thetaFluid*wf
+		+ kFluidnormX*dx(thetaFluid)*dx(wf)
+		+ kFluidnormY*dy(thetaFluid)*dy(wf)
+		+ interfacialFluid*wf*thetaFluid
+	)
+	+ int2d(Th)(
+		wf*(dTauFluid*Advect(thetaFluid) + interfacialFluid*thetaSolidOld)
+	)
+	+ int1d(Th,TopWall)(
+		wf*(phi/kp)*(WallHeatFlux(theta))
+	)
+	+on(Inlet, thetaFluid=0)
+;
+
+varf EnergySolid (thetaSolid, ws)
+	=int2d(Th)(
+		(dTauSolid)*thetaSolid*ws
+		+ kSolidX*dx(thetaSolid)*dx(ws)
+		+ kstgsnorm*dy(thetaSolid)*dy(ws)
+		+ interfacialSolid*ws*thetaSolid
+	)
+	+ int2d(Th)(
+		ws*(dTauSolid*thetaSolidOld + interfacialSolid*thetaFluidOld)
+	)
+	+ int1d(Th,TopWall)(
+		ws*(1.-phi)*(WallHeatFlux(theta))
+	)
+;
+
+// ---------------------------------------------------------
+// Assemble matrices and RHS vectors
+// ---------------------------------------------------------
+matrix AEnerF = EnergyFluid(Vh,Vh, sym=0, solver=sparsesolver, factorize=1);
+matrix AEnerS = EnergySolid(Vh,Vh, sym=1, solver=Cholesky    , factorize=1);
+
+real[int] bEnerF = EnergyFluid(0,Vh);
+real[int] bEnerS = EnergySolid(0,Vh);
+
+/******************************************************************************
+ * MAIN LOOP *
+ *****************************************************************************/
+/* ============================================================================
+   SECTION: Fields and parameters used in the loop
+   ========================================================================= */
+real uTInlet, uTOutlet, avgOfOut;
+string sTextTempF, sTextTempS;
+
+uTInlet = int1d(Th,Inlet)(uFluid*thetaFluid);
+uTOutlet = int1d(Th,Outlet)(uFluid*thetaFluid);
+
+real fluidTempError = 1.0, solidTempError = 1.0, maxErrT = 1.0;
+
+string outputFolder = "../results/tempTXT";
+exec("python create_directories.py " + outputFolder);
+
+// Plot messages
+string plotmsgOf = "Non-dim fluid temp, ReH=" + ReH + ", epsP=" + xip + ", xiL=" + xiL + ", alphap=" + alphap + ", kp=" + kp;
+string plotmsgOs = "Non-dim solid temp, ReH=" + ReH + ", epsP=" + xip + ", xiL=" + xiL + ", alphap=" + alphap + ", kp=" + kp;
+
+real[int] fluidThermalDifference(thetaFluid.n), solidThermalDifference(thetaSolid.n);
+
+/* ============================================================================
+   SECTION: Start main loop
+   ========================================================================= */
+for(int n = initIter; n <= maxIter; n++){
+	thetaFluidOld[] = thetaFluid[];
+	thetaSolidOld[] = thetaSolid[];
+	
+	bEnerF = EnergyFluid(0,Vh);
+	bEnerS = EnergySolid(0,Vh);
+	
+	thetaFluid[] = AEnerF^-1 * bEnerF;
+	thetaSolid[] = AEnerS^-1 * bEnerS;
+
+	if(n % checkLoopEvery == 0){
+		// L2 squared error calculation
+		//fluidTempError = sqrt(int2d(Th)(square((thetaFluid-thetaFluidOld)))/Th.area);
+		//solidTempError = sqrt(int2d(Th)(square((thetaSolid-thetaSolidOld)))/Th.area);
+
+		// RMS error calculation
+		fluidThermalDifference = thetaFluid[]-thetaFluidOld[];
+		solidThermalDifference = thetaSolid[]-thetaSolidOld[];
+		fluidTempError = fluidThermalDifference.l2/sqrt(thetaFluid.n);
+		solidTempError = solidThermalDifference.l2/sqrt(thetaSolid.n);
+
+		// Stoping condition is based on the maximum of the two errors
+		maxErrT = fmax(fluidTempError, solidTempError);
+
+		uTInlet = int1d(Th,Inlet)(uFluid*thetaFluid);
+		uTOutlet = int1d(Th,Outlet)(uFluid*thetaFluid);
+
+		avgOfOut = int1d(Th,Outlet)(thetaFluid);
+		thetaPlate = int1d(Th,TopWall)(phi*thetaFluid+(1-phi)*thetaSolid); // plate temperature
+
+		cout << "iter = " << n << " Fluid L2 = " << fluidTempError << " Solid L2 = " << solidTempError << " (uFluid*thetaFluid)in = " << uTInlet << " (uFluid*thetaFluid)out = " << uTOutlet  << " thetaFluid_avg,out = " << avgOfOut << " thetaPlate = " << thetaPlate <<endl;
+
+		if((n % exportEvery == 0) && isExportTemp){
+				exportCounter++;
+
+				sTextTempF = outputFolder + "/Temp_F-" + exportCounter + ".txt";
+				sTextTempS = outputFolder + "/Temp_S-" + exportCounter + ".txt";
+
+				ofstream FluidTempdata(sTextTempF);
+				ofstream SolidTempdata(sTextTempS);
+
+				FluidTempdata << thetaFluid[] << endl;
+				SolidTempdata << thetaSolid[] << endl;
+		} // files get closed automatically after curly brackets
+
+		if(n % 1000 == 0){
+			plot(thetaFluid, wait=false, value= true, fill=true, cmm=plotmsgOf);
+		}
+		if((n % checkConvergenceEvery == 0) && (maxErrT < maxDiffInTemp)){
+			break;
+		}
+	}
+}
+
+if(isExportTemp){
+	ofstream FluidTempdata(outputFolder + "/Temp_F.txt");
+	ofstream SolidTempdata(outputFolder + "/Temp_S.txt");
+
+	FluidTempdata << thetaFluid[] << endl;
+	SolidTempdata << thetaSolid[] << endl;
+} // files get closed automatically after curly brackets
+
+plot(thetaSolid, wait=true, value=true, fill=true, cmm=plotmsgOs);
+plot(thetaFluid, wait=true, value=true, fill=true, cmm=plotmsgOf);

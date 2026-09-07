@@ -1,0 +1,9 @@
+//
+verbosity = false;
+
+// Define parameters for post-processing options
+isPlotMesh = false;
+isPlotPhi = false;
+isPlotModels = false;
+isPlotResults = false;
+isPlotTemp = false;

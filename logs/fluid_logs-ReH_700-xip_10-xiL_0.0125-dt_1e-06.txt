@@ -1,0 +1,21 @@
+ Register of development of iterations for future reference. 
+iter = 0 , Err L2 = 1.00025 , Err Pin = 1.23429e+06 , outflux = 0.000468018 , avg: In Vel = 1 , Out Vel = 0.999532 , pIn = 1.23429e+06
+iter = 5 , Err L2 = 0.00123777 , Err Pin = 5.2313 , outflux = 0.000221218 , avg: In Vel = 1 , Out Vel = 0.999779 , pIn = 194.759
+iter = 10 , Err L2 = 0.000778419 , Err Pin = 2.00822 , outflux = 0.000199675 , avg: In Vel = 1 , Out Vel = 0.9998 , pIn = 180.121
+iter = 15 , Err L2 = 0.000570883 , Err Pin = 1.18449 , outflux = 0.000190982 , avg: In Vel = 1 , Out Vel = 0.999809 , pIn = 172.793
+iter = 20 , Err L2 = 0.000466654 , Err Pin = 0.768854 , outflux = 0.000188317 , avg: In Vel = 1 , Out Vel = 0.999812 , pIn = 168.222
+iter = 25 , Err L2 = 0.000402804 , Err Pin = 0.542049 , outflux = 0.000187982 , avg: In Vel = 1 , Out Vel = 0.999812 , pIn = 165.11
+iter = 30 , Err L2 = 0.000356412 , Err Pin = 0.410136 , outflux = 0.000188348 , avg: In Vel = 1 , Out Vel = 0.999812 , pIn = 162.822
+iter = 35 , Err L2 = 0.000319525 , Err Pin = 0.32785 , outflux = 0.000188731 , avg: In Vel = 1 , Out Vel = 0.999811 , pIn = 161.032
+iter = 40 , Err L2 = 0.000289062 , Err Pin = 0.272573 , outflux = 0.00018888 , avg: In Vel = 1 , Out Vel = 0.999811 , pIn = 159.567
+iter = 45 , Err L2 = 0.000263498 , Err Pin = 0.232748 , outflux = 0.000188742 , avg: In Vel = 1 , Out Vel = 0.999811 , pIn = 158.328
+iter = 50 , Err L2 = 0.000241862 , Err Pin = 0.202319 , outflux = 0.000188355 , avg: In Vel = 1 , Out Vel = 0.999812 , pIn = 157.259
+iter = 55 , Err L2 = 0.000223433 , Err Pin = 0.178017 , outflux = 0.000187789 , avg: In Vel = 1 , Out Vel = 0.999812 , pIn = 156.322
+iter = 60 , Err L2 = 0.000207638 , Err Pin = 0.15799 , outflux = 0.000187121 , avg: In Vel = 1 , Out Vel = 0.999813 , pIn = 155.494
+iter = 65 , Err L2 = 0.000194015 , Err Pin = 0.141136 , outflux = 0.000186422 , avg: In Vel = 1 , Out Vel = 0.999814 , pIn = 154.755
+iter = 70 , Err L2 = 0.000182187 , Err Pin = 0.126751 , outflux = 0.000185749 , avg: In Vel = 1 , Out Vel = 0.999814 , pIn = 154.094
+iter = 75 , Err L2 = 0.000171848 , Err Pin = 0.114354 , outflux = 0.000185148 , avg: In Vel = 1 , Out Vel = 0.999815 , pIn = 153.498
+iter = 80 , Err L2 = 0.000162749 , Err Pin = 0.103597 , outflux = 0.00018465 , avg: In Vel = 1 , Out Vel = 0.999815 , pIn = 152.959
+iter = 85 , Err L2 = 0.000154688 , Err Pin = 0.0942139 , outflux = 0.000184275 , avg: In Vel = 1 , Out Vel = 0.999816 , pIn = 152.47
+iter = 90 , Err L2 = 0.000147501 , Err Pin = 0.0859939 , outflux = 0.000184034 , avg: In Vel = 1 , Out Vel = 0.999816 , pIn = 152.024
+iter = 95 , Err L2 = 0.000141055 , Err Pin = 0.0787661 , outflux = 0.000183928 , avg: In Vel = 1 , Out Vel = 0.999816 , pIn = 151.616
