@@ -1,0 +1,10 @@
+//
+verbosity=false;
+
+// ===== Write true or false to enable options =====
+isPlotMesh=true;
+isPlotPhi=true;
+isPlotVelocities=true;
+isPlotModels = true;
+isExportTemp = false;
+isImportTemp = false;

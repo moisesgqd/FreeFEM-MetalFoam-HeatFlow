@@ -1,0 +1,6 @@
+//
+kp = 0.0025; 
+qP = 1.0;
+BiH = 0.0005; 
+thetaPlate = 0; 
+thetaAmb = 0;

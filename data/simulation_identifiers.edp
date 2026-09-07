@@ -1,0 +1,4 @@
+//
+id = "20260623213701"; // format: year YYYY, month MM, day DD, hour HH, minute MM, run number XX
+programVersion = "4.0.0";
+comments = "This line is for comments.\nSpecial information about the simulation can be added here.";

@@ -1,0 +1,220 @@
+/******************************************************************************
+ * *
+ * IMPORT INPUT PARAMETERS *
+ * *
+ *****************************************************************************/
+/* ============================================================================
+   SECTION: Debugging options
+   ========================================================================= */
+// Verbosity is included in the file
+bool isPlotMesh, isPlotPhi, isPlotResults, isPlotTemp, isPlotModels;
+include "../data/post_processing-input_options.edp"
+
+// function to check for NaN values
+func real[int] replaceNaN(real[int] & fold, real replaceValue){
+    real[int] fnew = fold;
+    for(int i=0; i<fnew.n; i++){
+        if(isNaN(fnew[i])){
+            fnew[i] = replaceValue;
+        }
+    }
+    cout << "Number of checked elements: " << fold.n << endl;
+    return fnew;
+}
+
+/* ============================================================================
+   SECTION: Channel characteristics
+   ========================================================================= */
+real L, H, W, beta, Lcp, VolFlow, dtf, dth;
+include "../data/channel_characteristics.edp"
+
+/* ============================================================================
+   SECTION: Relevant parameters
+   ========================================================================= */
+real ReH, xiL, xip, Pr, alphap;
+include "../data/flow-non_dim-parameters.edp"
+
+real kp, qP, BiH, Op, Oa;
+include "../data/heat_parameters.edp"
+
+real PeH = ReH*Pr;
+
+
+/******************************************************************************
+ * *
+ * MESH AND FINITE ELEMENT SPACES *
+ * *
+ *****************************************************************************/
+
+/* ============================================================================
+   SECTION: Wall identifiers
+   ========================================================================= */
+int BottomWall = 1;
+int Outlet = 2;
+int TopWall= 3;
+int Inlet = 4;
+
+/* ============================================================================
+   SECTION: Meshing
+   ========================================================================= */
+// ---------------------------------------------------------
+// Step 1: Define mesh name based on input parameters
+// ---------------------------------------------------------
+// Nodes, dimensionality and distributions
+int nx, ny;
+string dim, distX, distY;
+include "../data/mesh_inputs.edp"
+
+string meshName;
+if(dim == "dim"){
+    meshName = "mesh-" + nx + "x" + ny + "-" + dim + "-" + L + "x" + H + "-" + distX + "_" + distY + ".msh";
+}
+else
+    meshName = "mesh-" + nx + "x" + ny + "-" + dim + "-" + distX + "_" + distY + ".msh";
+
+// ---------------------------------------------------------
+// Step 2: Look up for mesh
+// ---------------------------------------------------------
+mesh Th;
+
+bool isMeshFound = false;
+int attempts = 0;
+while(!isMeshFound){
+	try{
+		Th = readmesh("../mesh/" + meshName);
+		isMeshFound = true;
+		cout << " Mesh found: " << meshName << endl;
+	}
+	catch(...){
+		cout << "\n ----------> Mesh not found! \n" << endl;
+		cout << "---------------------------------------------------------" << endl;
+		cout << "\n ----------> Generating mesh. \n" << endl;
+		exec("FreeFem++ ./generate_mesh.edp");
+		attempts++;
+	}
+	if(attempts > 1){
+		cout << " Error: Mesh generation failed after multiple attempts. Exiting program." << endl;
+		exit(1);
+	}
+}
+
+// ---------------------------------------------------------
+// Step 3: Plot mesh for validation, if required
+// ---------------------------------------------------------
+if (isPlotMesh) plot(Th,wait=true);
+
+
+/* ============================================================================
+   SECTION: Import results
+   ========================================================================= */
+// ---------------------------------------------------------
+// Step 1: Define piecewise quadratic elements
+// ---------------------------------------------------------
+// Pk is a function included in the mesh_inputs.edp file, which allows for easy modification of the FE space type
+fespace Vh(Th, Pk);
+
+// ---------------------------------------------------------
+// Step 2: Declare fields inside the FE space
+// ---------------------------------------------------------
+Vh u, sqrtu, v, p , Of, Os;
+
+// ---------------------------------------------------------
+// Step 3: Import fields from results
+// ---------------------------------------------------------
+
+// Create function to import fields
+func bool importResults(string folderLocation, string fileName, real[int] variableField){
+   real[int] dummyField(variableField.n); // Create temporary field to read data from file
+   {
+      ifstream file(folderLocation + fileName);
+      file >> dummyField;
+   } // file gets closed after block ends
+   for(int i = 0; i < variableField.n; i++){
+      variableField[i] = dummyField[i];
+   }
+   return true;
+}
+
+string flowResultsFolder = "../results/flowTXT/";
+string heatResultsFolder = "../results/tempTXT/";
+
+string velocityXFile = "Velocity-X.txt";
+string sqrtVelocityXFile = "SqrtVel-X.txt";
+string velocityYFile = "Velocity-Y.txt";
+string pressureFile = "Pressure.txt";
+
+string fluidTempFile = "Temp_F.txt";
+string solidTempFile = "Temp_S.txt";
+
+importResults(flowResultsFolder, velocityXFile, u[]);
+importResults(flowResultsFolder, sqrtVelocityXFile, sqrtu[]);
+importResults(flowResultsFolder, velocityYFile, v[]);
+importResults(flowResultsFolder, pressureFile, p[]);
+
+importResults(heatResultsFolder, fluidTempFile, Of[]);
+importResults(heatResultsFolder, solidTempFile, Os[]);
+
+if(isPlotResults){
+   plot(u, wait=true, fill=true, value=true, cmm="Velocity X");
+   plot(sqrtu, wait=true, fill=true, value=true, cmm="Sqrt Velocity X");
+   plot(v, wait=true, fill=true, value=true, cmm="Velocity Y");
+	plot(p, wait=true, fill=true, value=true, cmm="Non-dim Pressure");
+
+   plot(Of, wait=true, fill=true, value=true, cmm="Non-dim Fluid Temperature");
+   plot(Os, wait=true, fill=true, value=true, cmm="Non-dim Solid Temperature");
+}
+
+/******************************************************************************
+ * *
+ * MODELS OF POROUS MEDIA PROPERTIES *
+ * *
+ *****************************************************************************/
+/* ============================================================================
+   SECTION: Import porosity function
+   ========================================================================= */
+// The porosity function is defined as: fphi
+include "../data/include/porosity_profile.edp"
+
+// File already containg function for porosity (fphi) and finite element space (Vh phi).
+// If "isPlotPhi" is true, the porosity function will be plotted.
+// It will also be printed the average porosity value.
+// It ALSO contains: Vh fx = x, fy = y;
+
+/* ============================================================================
+   SECTION: Import models
+   ========================================================================= */
+include "../data/include/porous_flow_models.edp"
+include "../data/include/stagnant_thermal_conductivity_models.edp"
+include "../data/include/dispersion_interfacial_heat_models.edp"
+
+// Export velocity profile at center
+ofstream centerVelocityFile("../results/center_velocity.csv");
+centerVelocityFile.precision(12);
+centerVelocityFile << "Y, U" << endl;
+for(int i=0; i<u.n; i++){
+   if(abs(fx[][i]-0.5) < 1e-6){
+      centerVelocityFile << fy[][i] << ", "<< u[][i] << endl;
+   }
+}
+
+// From other program:
+real pin = int1d(Th, Inlet)(p);
+cout << "Inlet pressure = " << pin << endl;
+
+real Opavg = int1d(Th,TopWall)(phi*Of+(1-phi)*Os);
+
+real Oinf = int2d(Th)(u*Of);
+
+real dyOftop = int1d(Th,TopWall)(dy(Of));
+
+real Nuwavg = dyOftop/(Opavg-Oinf);
+
+cout << "Average Nusselt number at the top wall = " << Nuwavg << endl;
+
+real Ow = int1d(Th, TopWall)(phi*Of + (1-phi)*Os); // non-dimensional wall temperature
+real Ofa = int2d(Th)(u*Of); // non-dimensional average fluid temperature
+real dOfw = int1d(Th, TopWall)(dy(Of)); // non-dimensional temperature gradient at wall
+
+// Nusselt number at wall
+real Nuw = dOfw/(Ow-Ofa);
+cout << "Nusselt number at the top wall = " << Nuw << endl;

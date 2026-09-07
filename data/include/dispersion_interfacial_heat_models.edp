@@ -1,0 +1,30 @@
+// Thermal dispersion coefficients
+
+// Calmada and Mahajan (2000) model
+// Vh kdisnormX = 0.06*ReH*Pr*u*sqrt(fKp)/xip;
+// Vh kdisnormY = 0.00444*kdisnormX; 				// Based on Celik et al (2018) long-transv ratio of thermal dispersion
+
+// Celik et al (2018) model
+Vh uvar = pow(uFluid,1.5);
+uvar[] = replaceNansInArray(uvar[], 1.0e-18);
+Vh kdisnormX = (0.043/(pow((1-phi),0.25)))*sqrt(phi/fG)*pow((ReH/xip),1.5)*pow(Pr,1.63)*uvar;
+Vh kdisnormY = 0.00444*kdisnormX; 
+
+// ------ Interfacial heat transfer ------
+// Pore diameter Reynolds number, interfacial Nusselt number and interfacial HT coefficient
+// Vh sqrtRep = sqrt(ReH/xip)*sqrtu;
+// Vh Nuv = (2.82*sqrt(3*phi)*(3-Tor)*(Tor-1)/sqrt(Tor))*sqrt(ReH/(xip*rfip))*(Pr^0.37)*((kstgfnorm)^(0.63))*sqrtu;
+
+// Celik et al (2018) model
+Vh Nuv = 0.94*asfdp*pow(rcp,2)*pow(rfip,-0.5)*((kstgfnorm)^(0.63))*sqrt(ReH/xip)*pow(Pr,0.37)*sqrtu;
+
+// Zafari et at 2015
+// Vh Revar = (ReH/xip)*(u^0.28);
+// Revar[] = replaceNaN(Revar[], 1.0e-18);
+// Vh Nuv = 0.016*asfdp/sqrt(fKp) + 0.16*(asfdp/((fKp^0.38)*(phi^3*dcc^0.04)))*Revar;
+
+if(isPlotModels){
+    plot(kdisnormX, fill=true, value=true, wait=true, cmm="kdisnormX");
+    plot(kdisnormY, fill=true, value=true, wait=true, cmm="kdisnormY");
+    plot(Nuv, fill=true, value=true, wait=true, cmm="Nuv");
+}

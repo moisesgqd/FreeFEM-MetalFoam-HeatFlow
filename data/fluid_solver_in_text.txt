@@ -1,0 +1,330 @@
+/******************************************************************************
+ * INITIALIZATION *
+ *****************************************************************************/
+
+bool isPlotMesh, isPlotPhi, isExportFlow, isImportData, isPlotModels;
+include "../data/flow-input_options.edp" // Included in file: verbosity = false
+
+include "idp/user_defined-functions.idp" // Included in file: Pk
+
+// Relevant parameters
+real L, H, W, beta, Lcp, VolFlow, dtf, dth;
+real ReH, xiL, xip, Pr, alphap;
+
+include "../data/channel_characteristics.edp"
+include "../data/flow-non_dim-parameters.edp"
+
+real dtau = dtf;
+
+// Iteration parameters
+int initIter, maxIter, exportCounter, checkLoopEvery, convergenceMultiplier, exportMultiplier;
+real maxDiffInVelocity, maxDiffInPressure;
+
+include "../data/flow-iteration-parameters.edp"
+
+int checkConvergenceEvery = convergenceMultiplier*checkLoopEvery;
+int exportEvery = exportMultiplier*checkLoopEvery;
+
+// Constants parameters
+real squareEpsL = square(xiL);
+real dtauAlter = Pr*alphap*dtau;
+real transient = (1./(dtauAlter));
+
+// Macros definition
+macro advectiveAccel(vel) (vel#T/(dtauAlter))*convect([uphi, vphi], -dtauAlter*xiL*ReH, vel#Old) // EOM
+macro secondAdvectiveAccel(vel) InertialField*(uProv*dPhidx+vProv*dPhidy)*vel#Prov // EOM
+macro DarcyTerm(vel) DarcyField*vel#Prov // EOM
+macro ForchheimerTerm(vel) ForchheimerField*velMagnitude*vel#Prov // EOM
+macro firstBrinkman(vel) squareEpsL*dx(vel#Prov)*dx(vel#T) + dy(vel#Prov)*dy(vel#T) // EOM
+macro secondBrinkman(vel) squareEpsL*dPhidx*dx(vel#phi)+dPhidy*dy(vel#phi) // EOM
+
+/******************************************************************************
+ * MESH AND FINITE ELEMENT SPACES *
+ *****************************************************************************/
+
+// Wall identifiers
+int BottomWall = 1, Outlet = 2, TopWall= 3, Inlet = 4;
+
+// Define mesh name and load it
+int nx, ny;
+string dim, distX, distY;
+include "../data/mesh_inputs.edp"
+
+string meshName;
+if(dim == "dim"){
+    meshName = "mesh-" + nx + "x" + ny + "-" + dim + "-" + L + "x" + H + "-" + distX + "_" + distY + ".msh";
+}
+else
+    meshName = "mesh-" + nx + "x" + ny + "-" + dim + "-" + distX + "_" + distY + ".msh";
+
+mesh Th;
+importMesh(meshName) // a macro
+if (isPlotMesh) plot(Th,wait=true);
+
+// Declare finite element fields
+fespace Vh(Th, Pk); 
+fespace Vh1(Th, P1);
+fespace Vh0(Th, P0); 
+
+Vh uFluid=0, vFluid=0, pFluid=0;  	// Main varaible fields
+Vh uT, vT, q; 						// Test or weight functions
+Vh uProv, vProv;					// Provisional fields
+Vh uAux, vAux, velMagnitude; 		// Auxiliary fields
+Vh uOld, vOld, pOld; 				// Previous iteration fields
+Vh uphi, vphi; 						// Intrinsic velocity fields
+
+
+/******************************************************************************
+ * MODELS OF POROUS MEDIA PROPERTIES *
+ *****************************************************************************/
+
+// The porosity distribution
+include "../data/include/porosity_profile.edp"
+
+// File already containg function for porosity (fphi) and finite element space (Vh phi).
+// It ALSO contains: Vh fx = x, fy = y;
+
+// Metal foam property models
+include "../data/include/porous_flow_models.edp"
+
+Vh0 dPhidx = dx(phi);
+Vh0 dPhidy = dy(phi);
+
+/******************************************************************************
+ * VARIATIONAL PROBLEM DEFINITION *
+ *****************************************************************************/
+
+// Import initial fields, if specified
+if(isImportData){
+	string folderVel = "../results/flowTXT";
+
+	ifstream fileU(folderVel + "/Velocity-X.txt");
+	fileU >> uFluid[];
+
+	ifstream fileV(folderVel + "/Velocity-Y.txt");
+	fileV >> vFluid[];
+
+	ifstream fileP(folderVel + "/Pressure.txt");
+	fileP >> pFluid[];
+
+	plot(uFluid, wait=true, fill=true, value=true, cmm="Non-dim Velocity X");
+	plot(vFluid, wait=true, fill=true, value=true, cmm="Non-dim Velocity Y");
+	plot(pFluid, wait=true, fill=true, value=true, cmm="Non-dim Pressure");
+
+}
+
+// Update intrinsic velocity fields for convect function
+uphi=uFluid/phi;
+vphi=vFluid/phi;
+
+Vh DarcyField = (phi*square(xip)/fKp);
+Vh ForchheimerField = phi*cF*xip*ReH/(sqrt(fKp));
+Vh InertialField = (xiL*ReH/(square(phi)));
+
+// Import inlet velocity profile, defined as: uin
+include "../data/include/inlet_velocity_profile.edp"
+
+// ---------------------------------------------------------
+// Define variational formulations
+// ---------------------------------------------------------
+varf CompressibleVelocityX (uProv, uT)
+	= int2d(Th)(
+		uProv*uT/(dtauAlter)
+		+ firstBrinkman(u)
+	)
+	+ int2d(Th)(
+		advectiveAccel(u)
+	)
+	+ on(TopWall, BottomWall, uProv=0)
+	+ on(Inlet, uProv=uin)
+;
+
+varf CompressibleVelocityY (vProv, vT)
+	= int2d(Th)(
+		vProv*vT/(dtauAlter)
+		+ firstBrinkman(v)
+	)
+	+ int2d(Th)(
+		advectiveAccel(v)
+	)
+	+ on(Inlet, TopWall, BottomWall, vProv=0)
+;
+
+varf PressureCorrection (pFluid, q)
+	= int2d(Th)(
+		square(xip)*phi*(
+			xiL*dx(pFluid)*dx(q)
+			+ dy(pFluid)*dy(q)/xiL
+		)
+	)
+	+ int2d(Th)(
+		q*(
+			xiL*(dx(uAux) + dy(vAux))
+			+ square(xip)*(
+				xiL*dPhidx*dx(pOld)
+				+ (1./xiL)*dPhidy*dy(pOld)
+			)
+		)
+	)
+	+ on(Outlet, pFluid=0)
+;
+
+varf CorrectedVelocityX (uFluid, uT)
+	= int2d(Th)(
+		uFluid*uT/(dtauAlter)
+	)
+	- int2d(Th)(
+		uT*(
+			uAux
+			+ phi*square(xip)*dx(pFluid)
+		)
+	)
+	+ on(BottomWall, TopWall, uFluid=0)
+	+ on(Inlet, uFluid=uin)
+;
+
+varf CorrectedVelocityY (vFluid, vT)
+	= int2d(Th)(
+		xiL*vFluid*vT/(dtauAlter)
+	)
+	- int2d(Th)(
+		vT*(
+			xiL*vAux
+			+ phi*(square(xip)/xiL)*dy(pFluid)
+		)
+	)
+	+ on(Inlet, BottomWall, TopWall, vFluid=0)
+;
+
+// ---------------------------------------------------------
+// Assemble matrices and RHS vectors
+// ---------------------------------------------------------
+matrix AcomX = CompressibleVelocityX(Vh,Vh, solver = Cholesky, factorize=1);
+matrix AcomY = CompressibleVelocityY(Vh,Vh, solver = Cholesky, factorize=1);
+matrix Apres =    PressureCorrection(Vh,Vh, solver = Cholesky, factorize=1);
+matrix AcorX =    CorrectedVelocityX(Vh,Vh, solver = Cholesky, factorize=1);
+matrix AcorY =    CorrectedVelocityY(Vh,Vh, solver = Cholesky, factorize=1);
+
+real[int] bcomX = CompressibleVelocityX(0,Vh);
+real[int] bcomY = CompressibleVelocityY(0,Vh);
+real[int] bpres =    PressureCorrection(0,Vh);
+real[int] bcorX =    CorrectedVelocityX(0,Vh);
+real[int] bcorY =    CorrectedVelocityY(0,Vh);
+
+
+/******************************************************************************
+ * MAIN LOOP *
+ *****************************************************************************/
+// Parameters used in the loop
+real ErrorL2 = 1., ErrorPin = 1.;
+real outflux = 1.;
+real avgInVel, avgOutVel;
+real pin;
+string logMessage;
+
+string outputFolder = "../results/flowTXT";
+exec("python create_directories.py " + outputFolder);
+
+/* ============================================================================
+   SECTION: Start main loop
+   ========================================================================= */
+for(int n=initIter; n < maxIter; n++){
+    // --------------------------------------------------------- 
+	// Step 1: compressible part
+	// ---------------------------------------------------------
+    pOld=pFluid;
+    uOld=uFluid;
+    vOld=vFluid;
+
+    uphi=uOld/phi;
+    vphi=vOld/phi;
+
+    bcomX = CompressibleVelocityX(0,Vh);
+    bcomY = CompressibleVelocityY(0,Vh);
+
+    uProv[] = AcomX^-1 * bcomX;
+    vProv[] = AcomY^-1 * bcomY;
+
+    // ---------------------------------------------------------
+	// Step 2: pressure correction
+	// ---------------------------------------------------------
+    uphi = uProv/phi;
+    vphi = vProv/phi;
+
+	velMagnitude = sqrt(uProv^2 + xiL*vProv^2);
+
+	uAux = DarcyTerm(u) + ForchheimerTerm(u) - secondAdvectiveAccel(u) + secondBrinkman(u) - transient*uProv;
+    vAux = DarcyTerm(v) + ForchheimerTerm(v) - secondAdvectiveAccel(v) + secondBrinkman(v) - transient*vProv;
+
+    bpres = PressureCorrection(0,Vh);
+
+    pFluid[] = Apres^-1 * bpres;
+
+	// ---------------------------------------------------------
+    // Step 3: apply correction
+	// ---------------------------------------------------------
+    bcorX = CorrectedVelocityX(0,Vh);
+    bcorY = CorrectedVelocityY(0,Vh);
+    
+    uFluid[] = AcorX^-1 * bcorX;
+    vFluid[] = AcorY^-1 * bcorY;
+
+	if(n % checkLoopEvery == 0){
+		// Estimate parameters
+		outflux = -int1d(Th)(uFluid*N.x + xiL*vFluid*N.y);
+		avgInVel = int1d(Th,Inlet)(uFluid);
+		avgOutVel = int1d(Th,Outlet)(uFluid);
+		pin = int1d(Th,Inlet)(pFluid);
+
+		ErrorL2 = sqrt(int2d(Th)(square((uFluid-uOld))+square(xiL*(vFluid-vOld)))/Th.area);
+		ErrorPin = sqrt(int1d(Th,Inlet)(square(pFluid-pOld)));
+
+		logMessage = "iter = " + n + " , Err L2 = " + ErrorL2 + " , Err Pin = " + ErrorPin + " , outflux = " + outflux + " , avg: In Vel = " + avgInVel + " , Out Vel = " + avgOutVel + " , pIn = " + pin;
+		cout << logMessage << endl;
+
+		// Export results every certain number of iterations
+		if((n % exportEvery == 0) && isExportFlow){
+			exportCounter++;
+
+			ofstream fileU(outputFolder + "/Velocity-X-" + exportCounter + ".txt");
+			ofstream fileV(outputFolder + "/Velocity-Y-" + exportCounter + ".txt");
+			ofstream fileP(outputFolder + "/Pressure-" + exportCounter + ".txt");
+
+			fileU << uFluid[] << endl;
+			fileV << vFluid[] << endl;
+			fileP << pFluid[] << endl;
+		}
+
+		// Check convergence every certain number of iterations
+		if(n % checkConvergenceEvery == 0){
+			plot(uFluid, wait=false, fill=true, value=true, cmm="No dim Velocity X");
+			if(ErrorL2 < maxDiffInVelocity){
+				cout << " Converged in velocity field. " << endl;
+				break;
+			}
+			if(ErrorPin < maxDiffInPressure){
+				cout << " Converged in pressure field. " << endl;
+				break;
+			}
+		}
+	}
+}
+
+if(isExportFlow){
+	Vh sqrtu = sqrt(uFluid);
+	sqrtu[] = replaceNansInArray(sqrtu[], 1.0e-18);
+
+	ofstream fileU(outputFolder + "/Velocity-X.txt");
+	ofstream fileSqrtU(outputFolder + "/SqrtVel-X.txt");
+	ofstream fileV(outputFolder + "/Velocity-Y.txt");
+	ofstream fileP(outputFolder + "/Pressure.txt");
+
+	fileU << uFluid[] << endl;
+	fileV << vFluid[] << endl;
+	fileP << pFluid[] << endl;
+	fileSqrtU << sqrtu[] << endl;
+} // files get closed automatically after curly brackets
+
+plot(uFluid, wait=true, fill=true, value=true, cmm="No dim Velocity X");
+plot(vFluid, wait=true, fill=true, value=true, cmm="No dim Velocity Y");
+plot(pFluid, wait=true, fill=true, value=true, cmm="Pressure");

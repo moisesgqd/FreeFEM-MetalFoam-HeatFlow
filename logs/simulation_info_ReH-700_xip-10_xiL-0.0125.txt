@@ -1,0 +1,10 @@
+Simulation info
+=========================================================================================
+Mesh = mesh-50x50-non-trigo_trigo.msh
+nx = 50 , ny = 50
+=========================================================================================
+Porosity function = phib + (phit - phib)*y , for phib = 0.95 , phit = 0.85
+Average porosity = 0.9
+ReH = 700 , xiL = 0.0125 , xip = 10
+Pr = 6 , alphap = 0.0015
+dtau = 1e-06

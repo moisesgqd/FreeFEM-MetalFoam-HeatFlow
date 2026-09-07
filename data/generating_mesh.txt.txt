@@ -1,0 +1,117 @@
+ ==========================================================
+ Initialization Section
+ ==========================================================
+
+verbosity = false;
+bool isPlotMesh = true;
+string[int] distributions = [linear, quad, trigo, hyper12];  Possible values for the mesh distribution linear, quad, trigo, hyper12
+string[int] vardimension = [dim, noH, non];  Possible values for the mesh dimension non (no-dimensional), noH (no-dimensional on H), dim (dimensional)
+
+
+ Inputs
+real L, H, W, beta, Lcp, VolFlow, dtf, dth;
+include ..datachannel_characteristics.edp
+include idpuser_defined-functions.idp
+
+ Read mesh data inputs
+int nx, ny;
+string distX, distY, dim;  dim options non (no-dimensional), noH (no-dimensional on H), dim (dimensional)
+
+include ..datamesh_inputs.edp
+
+ --- Check if given dim option is valid ---
+checkOptionInArray(vardimension, dim);
+
+ --- Define arrays containg the mesh data ---
+real[string] vardimX, vardimY;
+
+vardimX[vardimension[0]] = L;  Dimensional x coordinate
+vardimX[vardimension[1]] = L;  Non-dimensional x coordinate on H   
+vardimX[vardimension[2]] = 1.0;  Non-dimensional x coordinate
+
+vardimY[vardimension[0]] = H;  Dimensional y coordinate
+vardimY[vardimension[1]] = 1.0;  Non-dimensional y coordinate on H
+vardimY[vardimension[2]] = 1.0;  Non-dimensional y coordinate
+
+
+
+ ==========================================================
+ Mesh VerificationCreation Section
+ ==========================================================
+
+ ========== Check if the mesh already exists ==========
+
+ --- Define the mesh name based on the input parameters ---
+string meshName;
+if(dim == dim) meshName = mesh- + nx + x + ny + - + dim + - + L + x + H + - + distX + _ + distY + .msh;
+else meshName = mesh- + nx + x + ny + - + dim + - + distX + _ + distY + .msh;
+    
+cout  Mesh name   meshName  endl;
+
+ --- Try yo read the mesh ---
+mesh Th;
+try{
+    Th = readmesh(..mesh + meshName);
+    cout  Mesh already generated.  endl;
+}
+catch(...){
+     ========== Generate mesh ==========
+    cout       ----- Mesh file not found. Generating mesh...  endl;
+    isPlotMesh = false;  Disable mesh plotting during generation
+
+    checkOptionInArray(distributions, distX);
+    checkOptionInArray(distributions, distY);
+    
+     macro cosineFunction(variable, verticalShift, delta, horizontalShift)
+    func trigoX = cosineFunction(x, 0, 0.5, 0);
+    func trigoY = cosineFunction(y, 0, 0.5, 0);
+
+     macro hyperbolicTangentFunction(variable, center, steepness, delta)
+     func trigoY = hyperbolicTangentFunction(y, 0.5, 5.0, 1.0);
+    func funcY1 = hyperbolicTangentFunction(y, 0.2, 5.0, 0.4);
+    func funcY2 = hyperbolicTangentFunction(y, (17.30), 5.0, (1.3));
+    func funcY3 = hyperbolicTangentFunction(y, (13.15), 5.0, (4.15));
+
+
+     --- Generate the mesh based on the distribution options ---
+    if(distX == distY){
+        if(distX == linear){
+            Th = square(nx, ny, [vardimX[dim]x, vardimY[dim]y], flags=2);  Create a square mesh with linear distribution
+        }
+        else if(distX == quad){
+            Th = square(nx, ny, [vardimX[dim](x^2), vardimY[dim](y^2)], flags=2);  Create a square mesh with quadratic distribution
+        }
+        else if(distX == trigo){
+            Th = square(nx, ny, [vardimX[dim]trigoX, vardimY[dim]trigoY], flags=2);  Create a square mesh with trigonometric distribution
+        }
+    }
+    else if(distX == linear && distY == quad){
+        Th = square(nx, ny, [vardimX[dim]x, vardimY[dim](y^2)], flags=2);
+    }
+    else if(distX == linear && distY == trigo){
+        Th = square(nx, ny, [vardimX[dim]x, vardimY[dim]trigoY], flags=2);
+    }
+    else if(distX == quad && distY == linear){
+        Th = square(nx, ny, [vardimX[dim](x^2), vardimY[dim]y], flags=2);
+    }
+    else if(distX == quad && distY == trigo){
+        Th = square(nx, ny, [vardimX[dim](x^2), vardimY[dim]trigoY], flags=2);
+    }
+    else if(distX == trigo && distY == linear){
+        Th = square(nx, ny, [vardimX[dim]trigoX, vardimY[dim]y], flags=2);
+    }
+    else if(distX == trigo && distY == quad){
+        Th = square(nx, ny, [vardimX[dim]trigoX, vardimY[dim](y^2)], flags=2);
+    }
+    else if(distX == trigo && distY == hyper12){
+        Th = square(nx, ny, [trigoX, funcY1(y0.4) + funcY2(y=0.4)(y(11.15)) + funcY3(y=(11.15))], flags=2);
+    }
+
+    savemesh(Th, ..mesh + meshName);  Save the mesh to a file
+    cout  Mesh successfully generated and saved.  endl;
+    isPlotMesh = true;  Enable mesh plotting after generation
+
+
+}
+
+if(isPlotMesh) plot(Th, wait = true, cmm = Mesh of the porous duct);  Plot the mesh if isPlotMesh is true
